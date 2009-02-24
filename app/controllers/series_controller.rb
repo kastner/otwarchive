@@ -18,20 +18,13 @@ class SeriesController < ApplicationController
     can_view_hidden = is_admin? || (current_user.is_a?(User) && current_user.is_author_of?(@series))
 	  access_denied if (@series.hidden_by_admin? && !can_view_hidden)
   end
-
-  
   
   # GET /series
   # GET /series.xml
   def index
     if params[:user_id]
       @user = User.find_by_login(params[:user_id])
-      if params[:pseud]
-        @author = @user.pseuds.find(params[:pseud])
-        @series = @author.series.find(:all, :order => 'series.created_at DESC').paginate(:page => params[:page])
-      else
-        @series = @user.series.find(:all, :order => 'series.created_at DESC').paginate(:page => params[:page])
-      end
+      @series = @user.series.find(:all, :order => 'series.created_at DESC').paginate(:page => params[:page])
     else
       @series = Series.find(:all, :order => 'series.created_at DESC').paginate(:page => params[:page])
     end
@@ -59,10 +52,6 @@ class SeriesController < ApplicationController
   # GET /series/1/edit
   def edit
     @series = Series.find(params[:id])
-    @pseuds = current_user.pseuds
-    @coauthors = @series.pseuds.select{ |p| p.user.id != current_user.id}
-    to_select = @series.pseuds.blank? ? [current_user.default_pseud] : @series.pseuds
-    @selected_pseuds = to_select.collect {|pseud| pseud.id.to_i }
   end
   
   # GET /series/1/manage
@@ -92,19 +81,6 @@ class SeriesController < ApplicationController
   # PUT /series/1.xml
   def update
     @series = Series.find(params[:id])
-    
-    unless params[:series][:author_attributes][:ids]
-      flash[:error] = "Sorry, you cannot remove yourself entirely as an author of a series right now.".t
-      redirect_to edit_series_path(@series) and return
-    end
-    
-    if params[:pseud] && params[:pseud][:byline] && params[:pseud][:byline] != "" && params[:series][:author_attributes]
-      valid_pseuds = Pseud.parse_bylines(params[:pseud][:byline])[:pseuds] # an array
-      valid_pseuds.each do |valid_pseud|
-        params[:series][:author_attributes][:ids] << valid_pseud.id rescue nil
-      end
-      params[:pseud][:byline] = ""
-    end
     
     if params[:sortable_series_list]
       params[:sortable_series_list].each_with_index do |id, position|
