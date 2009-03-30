@@ -29,34 +29,72 @@ module UsersHelper
   # (The total should reflect the number of bookmarks the user can actually see.)
   def print_bookmarks_link(user)
     total = logged_in_as_admin? ? @user.bookmarks.count : @user.bookmarks.visible.size
-    prefix = (@user == current_user) ? "My ".t : ""
-    link_to_unless_current prefix + "Bookmarks".t + " (" + total.to_s + ")", user_bookmarks_path(@user)
+    prefix = (@user == current_user) ? "My " : ""
+    link_to_unless_current prefix + "Bookmarks" + " (" + total.to_s + ")", user_bookmarks_path(@user)
+  end
+	
+	def print_pseud_bookmarks_link(pseud)
+    total = logged_in_as_admin? ? pseud.bookmarks.count : pseud.bookmarks.visible.size
+    prefix = (@user == current_user) ? "My " : ""
+    link_to_unless_current prefix + "Bookmarks" + " (" + total.to_s + ")", user_pseud_bookmarks_path(@user, pseud)
   end
   
   # Prints link to works page with user-appropriate number of works
   # (The total should reflect the number of works the user can actually see.)
   def print_works_link(user)
     total = user.visible_work_count
-    prefix = (@user == current_user) ? "My ".t : ""
-    link_to_unless_current prefix + "Works".t + " (" + total.to_s + ")", user_works_path(@user)
+    prefix = (@user == current_user) ? "My " : ""
+    link_to_unless_current prefix + "Works" + " (" + total.to_s + ")", user_works_path(@user)
   end
   
+  def print_pseud_works_link(pseud)
+    total = pseud.visible_works_count
+    prefix = (@user == current_user) ? "My " : ""
+    link_to_unless_current prefix + "Works" + " (" + total.to_s + ")", user_pseud_works_path(@user, pseud)
+  end
+
   # Prints link to series page with user-appropriate number of series
-  # There's no option to restrict the visibility of a series right now, but there probably will be in the future
   def print_series_link(user)
-    total = @user.series.count
-    prefix = (@user == current_user) ? "My ".t : ""
-    link_to_unless_current prefix + "Series".t + " (#{total})", user_series_index_path(@user)
+    total = @series ? @series.size : user.series.select{|s| s.visible?(current_user)}.size
+    prefix = (@user == current_user) ? "My " : ""
+    link_to_unless_current prefix + "Series" + " (#{total})", user_series_index_path(@user)
   end
   
+  def print_pseud_series_link(pseud)
+    total = @series ? @series.size : pseud.series.select{|s| s.visible?(current_user)}.size
+    prefix = (@user == current_user) ? "My " : ""
+    link_to_unless_current prefix + "Series" + " (#{total})", user_pseud_series_index_path(@user, pseud)
+  end
+
   def print_drafts_link(user)
     total = @user.unposted_works.size
-    link_to_unless_current "My Drafts".t + " (#{total})", drafts_user_works_path(@user)
+    link_to_unless_current "My Drafts" + " (#{total})", drafts_user_works_path(@user)
   end
   
+#  def print_pseud_drafts_link(pseud)
+#    total = pseud.unposted_works.size
+#    link_to_unless_current "My Drafts" + " (#{total})", drafts_user_pseud_works_path(@user, pseud)
+#  end
+
   def user_invitations(user)
     invitations = user.invitation_limit == 1 ? 'invitation' : 'invitations'
     user.invitation_limit.to_s + ' ' + invitations
+  end
+  
+  def authors_header(collection)
+    if collection.total_pages < 2
+      case collection.size
+      when 0; "0 Authors"
+      when 1; "1 Author"
+      else; collection.total_entries.to_s + " Authors"
+      end
+    else
+      %{ %d - %d of %d }% [
+        collection.offset + 1,
+        collection.offset + collection.length,
+        collection.total_entries
+      ] + "Authors"
+    end
   end
   
 end

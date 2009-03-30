@@ -13,19 +13,19 @@ module WorksHelper
   def wip_message(work)
     posted = work.number_of_posted_chapters
     posted = 1 if posted == 0
-    "Please note this is a work in progress, with ".t + posted.to_s + " of ".t + work.wip_length.to_s + " chapters posted.".t
-  end
+    "Please note this is a work in progress, with " + posted.to_s + " of " + work.wip_length.to_s + " chapters posted."
+ end
 
 #  def view_all_chapters_link(work)
-#    #link_to_remote "View entire work".t, {:url => {:controller => :chapters, :action => :index, :work_id => work, :old_chapter => chapter.id}, :method => :get},
+#    #link_to_remote "View entire work", {:url => {:controller => :chapters, :action => :index, :work_id => work, :old_chapter => chapter.id}, :method => :get},
 #    #                                      {:href => work_path(work)}
-#    link_to "View entire work".t, work_path(work)
+#    link_to "View entire work", work_path(work)
 #  end
 
   def view_chapter_link(work, chapter)
-    #link_to_remote "View by chapters".t, {:url => {:controller => :chapters, :action => :show, :work_id => work, :id => work.first_chapter}, :method => :get},
+    #link_to_remote "View by chapters", {:url => {:controller => :chapters, :action => :show, :work_id => work, :id => work.first_chapter}, :method => :get},
     #                                        {:href => url_for({:controller => :chapters, :action => :show, :work_id => work, :id => work.first_chapter})}
-    link_to "View by chapters".t, url_for({:controller => :chapters, :action => :show, :work_id => work, :id => chapter})
+    link_to "View by chapters", url_for({:controller => :chapters, :action => :show, :work_id => work, :id => chapter})
   end
 
   # Determines whether or not to display warnings for a work
@@ -35,7 +35,7 @@ module WorksHelper
 
   # Link to show warnings if they're currently hidden
   def show_warnings_link(work)
-    link_to_remote "Show warnings".t,
+    link_to_remote "Show warnings",
       :url => {:controller => 'tags', :action => 'show_hidden', :work_id => work.id },
       :method => :get
   end
@@ -46,20 +46,20 @@ module WorksHelper
       search_query = " found"
     else
       search_query = html_escape search_query
-      search_query = " found for '".t + search_query + "'"
+      search_query = " found for '" + search_query + "'"
     end
     if collection.total_pages < 2
       case collection.size
-      when 0; "0 Works".t + search_query
-      when 1; "1 Work".t + search_query
-      else; collection.total_entries.to_s + " Works".t + search_query
+      when 0; "0 Works" + search_query
+      when 1; "1 Work" + search_query
+      else; collection.total_entries.to_s + " Works" + search_query
       end
     else
       %{ %d - %d of %d }% [
         collection.offset + 1,
         collection.offset + collection.length,
         collection.total_entries
-      ] + "Works".t + search_query
+      ] + "Works" + search_query
     end
   end
 
@@ -68,38 +68,28 @@ module WorksHelper
     @work.new_record? ? Warning.find_by_name(ArchiveConfig.WARNING_DEFAULT_TAG_NAME) : @work.warning_strings
   end
 
-  def get_tags_by_category(work)
-    if !@tags_by_category_work || @tags_by_category_work != work
-      @tags_by_category_work = work
-      @tags_by_category = nil
-    end
-    @tags_by_category ||= work.tags.sort.group_by(&:type)
-  end
-
   def get_title_string(tags, category_name = "")
     if tags && tags.size > 0
       tags.collect(&:name).join(", ")
     else
-      category_name.blank? ? "" : "No".t + " " + category_name
+      category_name.blank? ? "" : "No" + " " + category_name
     end
   end
 
   def get_symbols_for(work)
-    tags_by_category = get_tags_by_category(work)
+    warning_class = get_warnings_class(work.warnings)
+    warning_string = get_title_string(work.warnings)
 
-    warning_class = get_warnings_class(tags_by_category["Warning"])
-    warning_string = get_title_string(tags_by_category["Warning"])
-
-    rating = tags_by_category["Rating"].blank? ? nil : tags_by_category["Rating"].first
+    rating = work.ratings.blank? ? nil : work.ratings.first
     rating_class = get_ratings_class(rating)
-    rating_string = get_title_string(tags_by_category["Rating"], "rating".t)
+    rating_string = get_title_string(work.ratings, "rating")
 
-    category = tags_by_category["Category"].blank? ? nil : tags_by_category["Category"].first
+    category = work.categories.blank? ? nil : work.categories.first
     category_class = get_category_class(category)
-    category_string = get_title_string(tags_by_category["Category"], "category".t)
+    category_string = get_title_string(work.categories, "category")
 
     iswip_class = get_complete_class(work)
-    iswip_string = work.is_wip ? "Work in Progress".t : "Complete Work".t
+    iswip_string = work.is_wip ? "Work in Progress" : "Complete Work"
 
     symbol_block = "<ul class=\"required-tags\">\n"
     %w(rating category warning iswip).each do |w|
@@ -164,38 +154,6 @@ module WorksHelper
     else
       "complete-yes"
     end
-  end
-
-  def cast_tags_for(work)
-    tags_by_category = get_tags_by_category(work)
-
-    # we combine pairing and character tags up to the limit
-    characters = tags_by_category["Character"] || []
-    pairings = tags_by_category["Pairing"] || []
-    return [] if pairings.empty? && characters.empty?
-
-    pairing_characters = pairings.collect{|p| p.all_characters}.flatten.uniq.compact
-
-    cast = pairings + characters - pairing_characters
-    if cast.size > ArchiveConfig.TAGS_PER_LINE
-      cast = cast[0..(ArchiveConfig.TAGS_PER_LINE-1)]
-    end
-
-    return cast
-  end
-
-  def freeform_tags_for(work)
-    tags_by_category = get_tags_by_category(work)
-
-    warnings = tags_by_category["Warning"] || []
-    freeform = tags_by_category["Freeform"] || []
-    ambiguous = tags_by_category["Ambiguity"] || []
-
-    tags = warnings + freeform + ambiguous
-    if tags.size > ArchiveConfig.TAGS_PER_LINE
-      tags = tags[0..(ArchiveConfig.TAGS_PER_LINE-1)]
-    end
-    return tags
   end
 
   # Use time_ago_in_words if less than a month ago, otherwise display date

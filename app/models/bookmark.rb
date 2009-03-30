@@ -1,11 +1,11 @@
 class Bookmark < ActiveRecord::Base
   belongs_to :bookmarkable, :polymorphic => true
-  belongs_to :user
+  belongs_to :pseud
   has_many :taggings, :as => :taggable
   has_many :tags, :through => :taggings, :source => :tagger, :source_type => 'Tag'
 
   validates_length_of :notes, 
-    :maximum => ArchiveConfig.NOTES_MAX, :too_long => "must be less than %d letters long.".t/ArchiveConfig.NOTES_MAX #/comment here just to fix aptana coloring
+    :maximum => ArchiveConfig.NOTES_MAX, :too_long => t('notes_too_long', :default => "must be less than {{max}} letters long.", :max => ArchiveConfig.NOTES_MAX)
     
   def self.visible(options = {})
     current_user=User.current_user
@@ -15,7 +15,7 @@ class Bookmark < ActiveRecord::Base
   end
     
   def visible(current_user=User.current_user)
-    return self if current_user == self.user
+    return self if current_user == self.pseud.user
     unless current_user == :false || !current_user
       return self if current_user.is_admin?
     end
@@ -23,7 +23,7 @@ class Bookmark < ActiveRecord::Base
       if self.bookmarkable.nil? 
         # only show bookmarks for deleted works to the user who 
         # created the bookmark
-        return self if user == current_user
+        return self if pseud.user == current_user
       else
         if self.bookmarkable_type == 'Work'
           return self if self.bookmarkable.visible(current_user)

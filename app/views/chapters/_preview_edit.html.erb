@@ -2,25 +2,16 @@
 
 <%- form_for([@work, @chapter]) do |f| -%>
 
-  <p><select name="chapter[author_attributes][ids][]" multiple="multiple" style="display : none;">
-    <%= options_from_collection_for_select(@chapter.authors, :id, :name, @chapter.authors.collect {|pseud| pseud.id.to_i }) %>
-  </select></p>
-  
-  <p><%= f.hidden_field :title, :value => "#{@chapter.title}" %>
-  <%= f.hidden_field :summary, :value => "#{@chapter.summary}" %>
-  <%= f.hidden_field :notes, :value => "#{@chapter.notes}" %>
-  <%= f.hidden_field :content, :value => "#{@chapter.content}" %>
-  <%= f.hidden_field :wip_length, :value => "#{@chapter.wip_length_placeholder}" %>
-  <%= f.hidden_field :current_position, :value => "#{@chapter.position_placeholder}" %></p>
+  <%= render :partial => 'hidden_fields', :locals => {:form => f} -%>
 
   <p class="submit">
   	<% if @chapter.posted? %>
-		<%= submit_tag 'Update'.t, :name => 'update_button' %>
+		<%= submit_tag t('forms.update', :default => 'Update'), :name => 'update_button' %>
 	<% else %>
-		<%= submit_tag 'Post'.t, :name => 'post_button' %>
+		<%= submit_tag t('forms.post', :default => 'Post'), :name => 'post_button' %>
 	<% end %>
-    <%= submit_tag 'Edit'.t, :name => 'edit_button' %>
-    <%= submit_tag 'Cancel'.t, :name => 'cancel_button' %> 
+    <%= submit_tag t('forms.edit', :default => 'Edit'), :name => 'edit_button' %>
+    <%= submit_tag t('forms.cancel', :default => 'Cancel'), :name => 'cancel_button' %> 
   </p>
 
 <% end %>               

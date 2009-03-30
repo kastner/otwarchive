@@ -25,8 +25,8 @@ class ChaptersController < ApplicationController
   end
 
   def access_denied
-    flash[:error] = "Please log in first.".t
-    store_location
+    flash[:error] = t('please_log_in', :default => "Please log in first.")
+   store_location
     redirect_to new_session_path
     false
   end
@@ -35,8 +35,8 @@ class ChaptersController < ApplicationController
   def is_author
     @work = Work.find(params[:work_id])
     unless current_user.is_a?(User) && current_user.is_author_of?(@work)
-      flash[:error] = "Sorry, but you don't have permission to make edits.".t
-      redirect_to(@work)     
+      flash[:error] = t('errors.no_permission_to_edit', :default => "Sorry, but you don't have permission to make edits.")
+     redirect_to(@work)     
     end
   end 
   
@@ -62,20 +62,31 @@ class ChaptersController < ApplicationController
   
   # Sets values for @chapter, @coauthor_results, @pseuds, and @selected_pseuds
   def set_instance_variables
-    if params[:pseud] && params[:pseud][:byline] && params[:chapter][:author_attributes]
+    # stuff new bylines into author attributes to be parsed by the chapter model
+    if params[:chapter] && params[:pseud] && params[:pseud][:byline] && params[:chapter][:author_attributes]
       params[:chapter][:author_attributes][:byline] = params[:pseud][:byline]
       params[:pseud][:byline] = ""
+    end
+
+    # stuff co-authors into author attributes too so we won't lose them
+    if params[:chapter] && params[:chapter][:author_attributes] && params[:chapter][:author_attributes][:coauthors]
+      params[:chapter][:author_attributes][:ids].concat(params[:chapter][:author_attributes][:coauthors]).uniq!
     end
     
     if params[:id] # edit, update, preview, post
       @chapter = @work.chapters.find(params[:id])
+      if params[:chapter]  # editing, save our changes
+        @chapter.attributes = params[:chapter]
+      end
     elsif params[:chapter] # create
       @chapter = @work.chapters.build(params[:chapter])
     else # new
       @chapter = @work.chapters.build
     end
-    
-    @pseuds = (current_user.pseuds + (@work.authors ||= []) + @work.pseuds).uniq
+
+    @allpseuds = (current_user.pseuds + (@work.authors ||= []) + @work.pseuds + (@chapter.authors ||= []) + (@chapter.pseuds ||= [])).uniq    
+    @pseuds = current_user.pseuds
+    @coauthors = @allpseuds.select{ |p| p.user.id != current_user.id}
     to_select = @chapter.authors.blank? ? @chapter.pseuds.blank? ? @work.pseuds : @chapter.pseuds : @chapter.authors 
     @selected_pseuds = to_select.collect {|pseud| pseud.id.to_i }
     
@@ -86,8 +97,8 @@ class ChaptersController < ApplicationController
   def index
     @chapters = @work.chapters.find(:all, :conditions => {:posted => true}, :order => "position")
     if @chapters.empty?
-      flash[:notice] = "That work has no posted chapters".t
-      redirect_to ('/') and return
+      flash[:notice] = t('none_posted', :default => "That work has no posted chapters")
+     redirect_to ('/') and return
     end
     @old_chapter = params[:old_chapter] ? @work.chapters.find(params[:old_chapter]) : @work.first_chapter 
     @commentable = @work
@@ -111,8 +122,8 @@ class ChaptersController < ApplicationController
         store_location 
         redirect_to new_session_path and return        
       elsif !current_user.is_author_of?(@work)
-  	    flash[:error] = 'This page is unavailable.'.t
-        redirect_to works_path and return
+  	    flash[:error] = t('not_visible', :default => 'This page is unavailable.')
+       redirect_to works_path and return
       end
     end
     @chapter = @work.chapters.find(params[:id])
@@ -135,8 +146,8 @@ class ChaptersController < ApplicationController
     if params["remove"] == "me"
       @chapter.pseuds = @chapter.pseuds - current_user.pseuds
       @chapter.save
-      flash[:notice] = "You have been removed as an author from the chapter".t
-      redirect_to @work
+      flash[:notice] = t('removed_as_author', :default => "You have been removed as an author from the chapter")
+     redirect_to @work
     end
   end
   
@@ -144,20 +155,21 @@ class ChaptersController < ApplicationController
   # POST /work/:work_id/chapters.xml
   def create
   	@work.wip_length = params[:chapter][:wip_length]
-  
+    load_pseuds
+    
     if !@chapter.invalid_pseuds.blank? || !@chapter.ambiguous_pseuds.blank?
       @chapter.valid? ? (render :partial => 'choose_coauthor', :layout => 'application') : (render :action => :new)
     elsif params[:edit_button]
       render :action => :new
     elsif params[:cancel_button]
       redirect_back_or_default('/')    
-    else  
+    else  # :preview or :cancel_coauthor_button
       if @chapter.save && @work.save
         @work.update_major_version
         @work.set_revised_at(@chapter.created_at)
 				@chapter.move_to(@chapter.position_placeholder) if @chapter.position_placeholder
-        flash[:notice] = "This is a preview of what this chapter will look like when it's posted to the Archive. You should probably read the whole thing to check for problems before posting.".t
-        redirect_to [:preview, @work, @chapter]
+        flash[:notice] = t('preview', :default => "This is a preview of what this chapter will look like when it's posted to the Archive. You should probably read the whole thing to check for problems before posting.")
+       redirect_to [:preview, @work, @chapter]
       else
         render :action => :new 
       end
@@ -170,10 +182,11 @@ class ChaptersController < ApplicationController
    
     @chapter.attributes = params[:chapter]
     @work.wip_length = params[:chapter][:wip_length]
-
+    load_pseuds
+    
     if !@chapter.invalid_pseuds.blank? || !@chapter.ambiguous_pseuds.blank?
       @chapter.valid? ? (render :partial => 'choose_coauthor', :layout => 'application') : (render :action => :new)
-    elsif params[:preview_button]
+    elsif params[:preview_button] || params[:cancel_coauthor_button]
       @preview_mode = true # Enigel Jan 31
       render :partial => 'preview_edit', :layout => 'application'
     elsif params[:cancel_button]
@@ -182,11 +195,11 @@ class ChaptersController < ApplicationController
     elsif params[:edit_button]
       render :action => "edit"
     else
-	  params[:chapter][:posted] = true if params[:post_button]
+      params[:chapter][:posted] = true if params[:post_button]
       if @chapter.update_attributes(params[:chapter]) && @work.save
         @work.update_minor_version      
         @chapter.move_to(@chapter.position_placeholder) if @chapter.position_placeholder
-        flash[:notice] = 'Chapter was successfully updated.'.t
+        flash[:notice] = t('successfully_updated', :default => 'Chapter was successfully updated.')
         redirect_to [@work, @chapter]
       else
         render :action => "edit" 
@@ -198,7 +211,7 @@ class ChaptersController < ApplicationController
     if params[:chapters]
       @work = Work.find(params[:work_id])
       @work.reorder_chapters(params[:chapters]) 
-      flash[:notice] = 'Chapter orders have been successfully updated.'.t
+      flash[:notice] = t('order_updated', :default => 'Chapter orders have been successfully updated.')
       redirect_to(@work)
     else 
       params[:sortable_chapter_list].each_with_index do |id, position|
@@ -222,8 +235,8 @@ class ChaptersController < ApplicationController
     else
       @chapter.posted = true
       if @chapter.save
-        flash[:notice] = 'Chapter has been posted!'.t
-        redirect_to(@work)
+        flash[:notice] = t('successfully_posted', :default => 'Chapter has been posted!')
+       redirect_to(@work)
       else
         render :action => "preview"
       end
@@ -235,7 +248,7 @@ class ChaptersController < ApplicationController
   def destroy
     @chapter = @work.chapters.find(params[:id])
     if @chapter.is_only_chapter?
-      flash[:error] = "You can't delete the only chapter in your story. If you want to delete the story, choose 'Delete work'.".t
+      flash[:error] = t('deleting_only_chapter', :default => "You can't delete the only chapter in your story. If you want to delete the story, choose 'Delete work'.")
       redirect_to(edit_work_url(@work))
     else
       @chapter.destroy
@@ -243,5 +256,13 @@ class ChaptersController < ApplicationController
       @work.update_minor_version
       redirect_to(edit_work_url(@work))
     end
+  end
+  
+  def load_pseuds
+    @allpseuds = (current_user.pseuds + (@work.authors ||= []) + @work.pseuds + (@chapter.authors ||= []) + (@chapter.pseuds ||= [])).uniq    
+    @pseuds = current_user.pseuds
+    @coauthors = @allpseuds.select{ |p| p.user.id != current_user.id}
+    to_select = @chapter.authors.blank? ? @chapter.pseuds.blank? ? @work.pseuds : @chapter.pseuds : @chapter.authors 
+    @selected_pseuds = to_select.collect {|pseud| pseud.id.to_i }
   end
 end

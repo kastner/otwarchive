@@ -4,26 +4,59 @@ class Series < ActiveRecord::Base
   has_bookmarks
   has_many :creatorships, :as => :creation
   has_many :pseuds, :through => :creatorships
+	has_many :users, :through => :pseuds, :uniq => true
   
   validates_presence_of :title
   validates_length_of :title, 
-    :minimum => ArchiveConfig.TITLE_MIN, :too_short=> "must be at least %d letters long.".t/ArchiveConfig.TITLE_MIN
+    :minimum => ArchiveConfig.TITLE_MIN, 
+    :too_short=> t('title_too_short', :default => "must be at least {{min}} letters long.", :min => ArchiveConfig.TITLE_MIN)
 
   validates_length_of :title, 
-    :maximum => ArchiveConfig.TITLE_MAX, :too_long=> "must be less than %d letters long.".t/ArchiveConfig.TITLE_MAX
+    :maximum => ArchiveConfig.TITLE_MAX, 
+    :too_long=> t('title_too_long', :default => "must be less than {{max}} letters long.", :max => ArchiveConfig.TITLE_MAX)
     
   validates_length_of :summary, 
     :allow_blank => true, 
-    :maximum => ArchiveConfig.SUMMARY_MAX, :too_long => "must be less than %d letters long.".t/ArchiveConfig.SUMMARY_MAX
+    :maximum => ArchiveConfig.SUMMARY_MAX, 
+    :too_long => t('summary_too_long', :default => "must be less than {{max}} letters long.", :max => ArchiveConfig.SUMMARY_MAX)
     
   validates_length_of :notes, 
     :allow_blank => true, 
-    :maximum => ArchiveConfig.NOTES_MAX, :too_long => "must be less than %d letters long.".t/ArchiveConfig.NOTES_MAX
+    :maximum => ArchiveConfig.NOTES_MAX, 
+    :too_long => t('notes_too_long', :default => "must be less than {{max}} letters long.", :max => ArchiveConfig.NOTES_MAX)
 
   after_save :save_creatorships
 
   attr_accessor :authors
   attr_accessor :toremove
+ 
+  def posted_works
+    self.works.select{|w| w.posted}
+  end
+  
+  # visibility aped from the work model
+  def visible(current_user=User.current_user)
+    if current_user == :false || !current_user || !current_user.is_a?(User)
+      return self unless self.restricted || self.hidden_by_admin
+    elsif (!self.hidden_by_admin && !self.posted_works.empty?) || (self.works.empty? && current_user.is_author_of?(self))
+      return self
+    elsif self.hidden_by_admin?
+      return self if current_user.kind_of?(Admin) || current_user.is_author_of?(self)
+    end
+  end
+
+  def visible?(user=User.current_user)
+    self.visible(user) == self
+  end
+	
+	# if the series includes an unrestricted work, restricted should be false
+	# if the series includes no unrestricted works, restricted should be true
+	def adjust_restricted
+		unless self.restricted == !self.works.collect(&:restricted).include?(false)
+		  self.toggle!(:restricted)
+		end
+	end
+  
   # return list of pseuds on this series
   def allpseuds
     works.collect(&:pseuds).flatten.compact.uniq.sort
@@ -72,8 +105,7 @@ class Series < ActiveRecord::Base
     end
     self.authors.flatten!
     self.authors.uniq!
-  end
-  
+  end 
 
   # Save creatorships (add the virtual authors to the real pseuds) after the series is saved
   def save_creatorships

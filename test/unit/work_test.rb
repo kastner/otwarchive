@@ -125,14 +125,14 @@ class WorkTest < ActiveSupport::TestCase
         assert_equal [@work1], Work.with_all_tag_ids([@tag.id]).owned_by(@work1.pseuds.first.user)
       end
       should "not be returned by with_all_tag_ids and owned_by and visible chained" do
-        assert_equal [], Work.visible.owned_by(@work1.pseuds.first.user).with_all_tag_ids([@tag.id])
+        assert_equal [], Work.visible(skip_ownership = true).owned_by(@work1.pseuds.first.user).with_all_tag_ids([@tag.id])
       end
       context "and visible" do
         setup do
           @work1.update_attribute("posted", true)
         end
         should "be returned by owned_by chained with visible and with tags" do
-          assert_equal [@work1], Work.visible.owned_by(@work1.pseuds.first.user).with_all_tag_ids([@tag.id])
+          assert_equal [@work1], Work.visible(skip_ownership = true).owned_by(@work1.pseuds.first.user).with_all_tag_ids([@tag.id])
         end
       end
     end
@@ -184,6 +184,48 @@ class WorkTest < ActiveSupport::TestCase
       @ordered_works = Work.visible.with_all_tag_ids([@tag.id]).ordered('title', 'ASC')
       assert @ordered_works[0] = @works[9]
       assert @ordered_works[9] = @works[0]
+    end
+  end
+
+  context "a work with a cast" do
+    setup do
+      @work = create_work
+      @work.add_default_tags
+      @pairing = create_pairing(:canonical => true)
+      @character = create_character(:canonical => true)
+      @work.pairing_string=@pairing.name
+      @work.character_string=@character.name
+    end
+    should "have both in cast list" do
+      assert_equal [@pairing, @character], @work.cast_tags
+    end
+    context "where the character is wrangled" do
+      setup do
+        @character.add_pairing(@pairing)
+      end
+      should "only have the pairing in cast list" do
+        assert_equal [@pairing], @work.cast_tags
+      end
+    end
+    context "where the character is wrangled but not to the pairing" do
+      setup do
+        @new_pairing = create_pairing(:canonical => true)
+        @character.add_pairing(@new_pairing)
+      end
+      should "have both in cast list" do
+        assert_equal [@pairing, @character], @work.cast_tags
+      end
+    end
+    context "where the character is wrangled but to the pairing's merger" do
+      setup do
+        @new_pairing = create_pairing(:canonical => true)
+        @pairing.wrangle_merger(@new_pairing)
+        @character.add_pairing(@new_pairing)
+        @work.reload
+      end
+      should "only have the pairing in cast list" do
+        assert_equal [@pairing], @work.cast_tags
+      end
     end
   end
 

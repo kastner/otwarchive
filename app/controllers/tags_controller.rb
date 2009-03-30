@@ -6,11 +6,11 @@ class TagsController < ApplicationController
   def check_tag_wrangler_status
     return true if logged_in_as_admin? || permit?("tag_wrangler")
     if logged_in?
-      flash[:error] = 'You have to be a tag wrangler to access this page'.t
+      flash[:error] = t('errors.tag_wranglers_only', :default => 'You have to be a tag wrangler to access this page')
       redirect_to current_user and return
     else
       store_location
-      flash[:error] = 'Please log in.'.t
+      flash[:error] = t('errors.please_log_in', :default => 'Please log in.')
       redirect_to new_session_path and return
     end
   end
@@ -28,20 +28,21 @@ class TagsController < ApplicationController
 
   def show
     @tag = Tag.find_by_name(params[:id])
-    unless @tag.is_a? Tag
-        flash[:error] = "Tag not found".t
+    if @tag.is_a? Tag
+      if @tag.is_a?(Banned) && !logged_in_as_admin?
+        flash[:error] = t('errors.log_in_as_admin', :default => "Please log in as admin")
         redirect_to tag_wranglings_path and return
-    end
-    if @tag.is_a?(Banned) && !logged_in_as_admin?
-        flash[:error] = "Please log in as admin".t
-        redirect_to tag_wranglings_path and return
-    end
-    if !@tag.canonical && !@tag.merger
-      if current_user.is_a?User
-        @works = @tag.works.visible_to_user.paginate(:page => params[:page])
-      else
-        @works = @tag.works.visible_to_all.paginate(:page => params[:page])
       end
+      if !@tag.canonical && !@tag.merger
+        if current_user.is_a?User
+          @works = @tag.works.visible_to_user.paginate(:page => params[:page])
+        else
+          @works = @tag.works.visible_to_all.paginate(:page => params[:page])
+        end
+      end
+    else
+      flash[:error] = t('not_found', :default => "Tag not found")
+      redirect_to '/'
     end
   end
 
@@ -49,7 +50,7 @@ class TagsController < ApplicationController
     unless params[:work_id].blank?
       @display_work = Work.find(params[:work_id])
       @display_tags = @display_work.warnings
-      @display_category = @display_tags.first.type.downcase  # Enigel Dec 13 08 quick 'n dirty fix
+      @display_category = @display_tags.first.class.name.downcase
     end
     if request.xml_http_request?
       respond_to do |format|
@@ -57,7 +58,7 @@ class TagsController < ApplicationController
       end
     else
       # This is just a quick fix to avoid script barf if JavaScript is disabled
-      flash[:error] = "Sorry, you need to have JavaScript enabled for this.".t
+      flash[:error] = t('need_javascript', :default => "Sorry, you need to have JavaScript enabled for this.")
       redirect_to :back
     end
 
@@ -80,19 +81,19 @@ class TagsController < ApplicationController
     if type
       @tag = type.constantize.find_or_create_by_name(params[:tag][:name])
     else
-      flash[:error] = "Please provide a category.".t
+      flash[:error] = t('please_provide_category', :default => "Please provide a category.")
       @tag = Tag.new(:name => params[:tag][:name])
       render :action => "new" and return
     end
     if @tag.andand.valid?
       if (@tag.name != params[:tag][:name]) && (@tag.name.downcase == params[:tag][:name].downcase) # only capitalization different
         @tag.update_attribute(:name, params[:tag][:name])  # use the new capitalization
-        flash[:notice] = 'Tag was successfully modified.'.t
+        flash[:notice] = t('successfully_modified', :default => 'Tag was successfully modified.')
       else
-        flash[:notice] = 'Tag was successfully created.'.t
+        flash[:notice] = t('successfully_created', :default => 'Tag was successfully created.')
       end
       @tag.update_attribute(:canonical, params[:tag][:canonical])
-      redirect_to edit_tag_path(@tag)
+      redirect_to url_for(:controller => "tags", :action => "edit", :id => @tag.name)
     else
       render :action => "new" and return
     end
@@ -101,11 +102,11 @@ class TagsController < ApplicationController
   def edit
     @tag = Tag.find_by_name(params[:id])
     if @tag.is_a?(Banned) && !logged_in_as_admin?
-        flash[:error] = "Please log in as admin".t
-        redirect_to tag_wranglings_path and return
+      flash[:error] = t('errors.log_in_as_admin', :default => "Please log in as admin")
+      redirect_to tag_wranglings_path and return
     end
     if @tag.blank?
-      flash[:error] = "Tag not found".t
+      flash[:error] = t('not_found', :default => "Tag not found")
       redirect_to tag_wranglings_path and return
     end
   end
@@ -113,21 +114,21 @@ class TagsController < ApplicationController
   def update
     @tag = Tag.find_by_name(params[:id].gsub(/%2F/, '/'))
     if @tag.blank?
-      flash[:error] = "Tag not found".t
-      redirect_to root_path and return
+      flash[:error] = t('not_found', :default => "Tag not found")
+      redirect_to tag_wranglings_path and return
     end
     old_common_tag_ids = @tag.common_tags_to_add.map(&:id).sort
 
     if (params[:tag][:name] && logged_in_as_admin?)
       if ['Rating', 'Warning', 'Category'].include?(@tag[:type])
-        flash[:error] = "Name can't be changed from this interface.".t
-      else
+        flash[:error] = t('name_change', :default => "Name can't be changed from this interface.")
+     else
         begin
           @tag.update_attribute(:name, params[:tag][:name])
         rescue
           @tag = Tag.find_by_name(params[:id]) # reset name
-          flash[:error] = "Name already taken.".t
-        end
+          flash[:error] = t('name_taken', :default => "Name already taken.")
+       end
       end
     end
     @tag.update_type(params[:tag][:type], logged_in_as_admin?) if params[:tag][:type]
@@ -166,7 +167,7 @@ class TagsController < ApplicationController
     if @tag.merger_id && params[:keep_synonym].blank?
       @tag.update_attribute("merger_id", "")
     elsif !params[:new_synonym].blank?
-      merger = @tag.type.constantize.find_or_create_by_name(params[:new_synonym])
+      merger = @tag.class.find_or_create_by_name(params[:new_synonym])
       if merger.id == @tag.id # find on new synonym returned the same tag => only capitalization different
         @tag.update_attribute(:name, params[:new_synonym]) # use the new capitalization
       else # new (or possibly old) tag should be canonical
@@ -188,7 +189,7 @@ class TagsController < ApplicationController
     new_common_tag_ids = @tag.common_tags_to_add.map(&:id).sort
     @tag.update_common_tags unless old_common_tag_ids == new_common_tag_ids
 
-    flash[:notice] = 'Tag was updated.'.t
-    redirect_to edit_tag_path(@tag.name)
+    flash[:notice] = t('successfully_updated', :default => 'Tag was updated.')
+    redirect_to url_for(:controller => "tags", :action => "edit", :id => @tag.name)
   end
 end

@@ -37,15 +37,18 @@ class User < ActiveRecord::Base
   before_update :validate_date_of_birth
   
   has_many :readings, :dependent => :destroy 
-  can_create_bookmarks
-  
+  has_many :bookmarks, :through => :pseuds 
   has_many :comments, :through => :pseuds
   has_many :creatorships, :through => :pseuds  
   has_many :works, :through => :creatorships, :source => :creation, :source_type => 'Work', :uniq => true
   has_many :chapters, :through => :creatorships, :source => :creation, :source_type => 'Chapter', :uniq => true
   has_many :series, :through => :creatorships, :source => :creation, :source_type => 'Series', :uniq => true
+  
   has_many :tags, :through => :works
   has_many :bookmark_tags, :through => :bookmarks, :source => :tags
+
+  has_many :translations, :foreign_key => 'translator_id' 
+  has_many :translations_to_beta, :class_name => 'Translation', :foreign_key => 'beta_id' 
   
   has_many :inbox_comments
   has_many :feedback_comments, :through => :inbox_comments, :conditions => {:is_deleted => false, :approved => true}, :order => 'created_at DESC'
@@ -58,28 +61,16 @@ class User < ActiveRecord::Base
   end
   
   named_scope :alphabetical, :order => :login
-  named_scope :starting_with, lambda {|letter|
-    {
-      :conditions => ['SUBSTR(login,1,1) = ?', letter]
-    }
-  }
+  named_scope :starting_with, lambda {|letter| {:conditions => ['SUBSTR(login,1,1) = ?', letter]}}
   named_scope :valid, :conditions => {:banned => false, :suspended => false}
-  named_scope :with_logins, lambda {|logins|
-    {
-     :conditions => ['login in (?)', logins] 
-    }
-  }
-  named_scope :with_ids, lambda {|ids|
-    {
-     :conditions => ['id in (?)', ids] 
-    }
-  }
 
-  validates_format_of :login, :message => 'Your user name must begin and end with a letter or number; it may also contain underscores but no other characters.'.t,
+  validates_format_of :login, 
+    :message => t('login_invalid', :default => 'Your user name must begin and end with a letter or number; it may also contain underscores but no other characters.'),
     :with => /\A[A-Za-z0-9]\w*[A-Za-z0-9]\Z/
 
-  validates_email_veracity_of :email, :message => 'This does not seem to be a valid email address.'.t
-  # validates_format_of :email, :with => /\A([^@\s]+)@((?:[-a-z0-9]+\.)+[a-z]{2,})\Z/i, :on => :create
+  validates_email_veracity_of :email, 
+    :message => t('email_invalid', :default => 'This does not seem to be a valid email address.')
+ # validates_format_of :email, :with => /\A([^@\s]+)@((?:[-a-z0-9]+\.)+[a-z]{2,})\Z/i, :on => :create
   # validates_format_of :password, :with => /(?=.*\d)(?=.*([a-z]|[A-Z]))/, :message => 'must have at least one digit and one alphabet character.'
 
 
@@ -90,28 +81,28 @@ class User < ActiveRecord::Base
   
   validates_inclusion_of :terms_of_service,
                          :in => %w{ 1 },
-                         :message => 'Sorry, you need to accept the Terms of Service in order to sign up.'.t,
+                         :message => t('must_accept_tos', :default => 'Sorry, you need to accept the Terms of Service in order to sign up.'),
                          :if => :first_save?
                          
   validates_inclusion_of  :age_over_13,
                           :in => %w{ 1 },
-                          :message => 'Sorry, you have to be over 13!'.t,
+                          :message => t('must_be_over_13', :default => 'Sorry, you have to be over 13!'),
                           :if => :first_save?
                           
   def to_param
     login
   end
 
-	begin
-	 ActiveRecord::Base.connection
-   ALPHABET = User.find(:all, :select => :login).collect {|user| user.login[0,1].upcase}.uniq.sort
+  begin
+    ActiveRecord::Base.connection
+    ALPHABET = User.find(:all, :select => :login).collect {|user| user.login[0,1].upcase}.uniq.sort
   rescue
     puts "no database yet, not initializing user login alphabet"
     ALPHABET = ['A']
   end
 
   def create_default_associateds
-    self.pseuds << Pseud.new(:name => self.login, :description => "Default pseud".t, :is_default => :true)  
+    self.pseuds << Pseud.new(:name => self.login, :description => "Default pseud", :is_default => :true)  
     self.profile = Profile.new
     self.preference = Preference.new
   end
@@ -178,7 +169,7 @@ class User < ActiveRecord::Base
   
   # Gets the number of works by this user that the current user can see
   def visible_work_count
-    Work.owned_by(self).visible.count(:distinct => true, :select => 'works.id')    
+    Work.owned_by(self).visible(skip_ownership = true).count(:distinct => true, :select => 'works.id')    
   end
   
   # Gets the user account for authored objects if orphaning is enabled
@@ -230,11 +221,7 @@ class User < ActiveRecord::Base
   # Should also be true if the user has used more than one of their pseuds on a work
   def is_sole_author_of?(item)
    other_pseuds = item.pseuds.find(:all) - self.pseuds
-   if self.is_author_of?(item) && other_pseuds.blank?
-     true
-   else
-     false
-   end
+   self.is_author_of?(item) && other_pseuds.blank?
  end
  
   # Returns array of works where the user is the sole author   
@@ -264,7 +251,7 @@ class User < ActiveRecord::Base
   def validate_date_of_birth
     unless self.profile.date_of_birth.blank?
       if self.profile.date_of_birth > 13.years.ago.to_date  
-        errors.add_to_base("You must be over 13.".t)
+        errors.add_to_base("You must be over 13.")
         return false
       end
     end

@@ -2,68 +2,88 @@ class Pseud < ActiveRecord::Base
 
   NAME_LENGTH_MIN = 1
   NAME_LENGTH_MAX = 40
-
   
   belongs_to :user
+  has_many :bookmarks
   has_many :creatorships
   has_many :works, :through => :creatorships, :source => :creation, :source_type => 'Work'
   has_many :chapters, :through => :creatorships, :source => :creation, :source_type => 'Chapter'
   has_many :series, :through => :creatorships, :source => :creation, :source_type => 'Series'
   validates_presence_of :name
-  validates_length_of :name, :within => NAME_LENGTH_MIN..NAME_LENGTH_MAX, :too_short => "That name is too short (minimum is %d characters)".t,
-        :too_long => "That name is too long (maximum is %d characters)".t
-  validates_format_of :name, :message => 'Pseuds can contain letters, numbers, spaces, underscores, and dashes.'.t,
+  validates_length_of :name, 
+    :within => NAME_LENGTH_MIN..NAME_LENGTH_MAX, 
+    :too_short => t('name_too_short', :default => "That name is too short (minimum is {{min}} characters)", :min => NAME_LENGTH_MIN),
+    :too_long => t('name_too_long', :default => "That name is too long (maximum is {{max}} characters)", :max => NAME_LENGTH_MAX)
+  validates_format_of :name, 
+    :message => t('name_invalid_characters', :default => 'Pseuds can contain letters, numbers, spaces, underscores, and dashes.'),
     :with => /\A[\w -]*\Z/    
-  validates_format_of :name, :message => 'Pseuds must contain at least one letter or number.'.t,
+  validates_format_of :name, 
+    :message => t('name_no_letters_or_numbers', :default => 'Pseuds must contain at least one letter or number.'),
     :with => /[a-zA-Z0-9]/
-    
-  
-  TAGGING_JOIN = "INNER JOIN taggings on tags.id = taggings.tagger_id
-                  INNER JOIN works ON (works.id = taggings.taggable_id AND taggings.taggable_type = 'Work')"
-
-  OWNERSHIP_JOIN = "INNER JOIN creatorships ON pseuds.id = creatorships.pseud_id
-                    INNER JOIN works ON (creatorships.creation_id = works.id AND creatorships.creation_type = 'Work')"
 
   named_scope :on_works, lambda {|owned_works|
     {
       :select => "DISTINCT pseuds.*",
-      :joins => OWNERSHIP_JOIN,
-      :conditions => ['works.id in (?)', owned_works.collect(&:id)]
+      :joins => :works,
+      :conditions => {:works => {:id => owned_works.collect(&:id)}}
     }
-  }
-  
-  named_scope :on_work_ids, lambda {|owned_work_ids|
-    {
-      :select => "DISTINCT pseuds.*",
-      :joins => OWNERSHIP_JOIN,
-      :conditions => ['works.id in (?)', owned_work_ids]
-    }
-  }
-  
-  named_scope :for_user, lambda {|user|
-    { :conditions => ['pseuds.user_id = ?', user.id] }
-  }
-  
-  named_scope :with_names, lambda {|pseud_names|
-    {:conditions => ['pseuds.name in (?)', pseud_names]}
   }
 
   named_scope :alphabetical, :order => :name
+  named_scope :starting_with, lambda {|letter| {:conditions => ['SUBSTR(name,1,1) = ?', letter]}}
+  
+  begin
+   ActiveRecord::Base.connection
+   ALPHABET = Pseud.find(:all, :select => :name).collect {|pseud| pseud.name[0,1].upcase}.uniq.sort
+  rescue
+    puts "no database yet, not initializing pseud alphabet"
+    ALPHABET = ['A']
+  end
 
   # Enigel Dec 12 08: added sort method
   # sorting by pseud name or by login name in case of equality
   def <=>(other)
     (self.name.downcase <=> other.name.downcase) == 0 ? (self.user_name.downcase <=> other.user_name.downcase) : (self.name.downcase <=> other.name.downcase)
   end
-
+  
   # For use with the work and chapter forms
   def user_name
      self.user.login
   end
   
+  def to_param
+    name
+  end
+
+  # Gets the number of works by this user that the current user can see
+  def visible_works_count
+    self.works.select{|w| w.visible?(User.current_user)}.uniq.size
+  end
+  
+  # Options can include :categories and :limit
+  # Gets all the canonical tags used by a given pseud (limited to certain 
+  # types if type options are provided), then sorts them according to 
+  # the number of times this pseud has used them, then returns an array
+  # of [tag, count] arrays, limited by size if a limit is provided 
+  # FIXME: it's also counting tags on works that aren't visible to the current user (drafts, restricted works)
+  def most_popular_tags(options = {})
+    if all_tags = Tag.by_pseud(self).by_type(options[:categories]).canonical
+      tags_with_count = {}
+      all_tags.uniq.each do |tag|
+        tags_with_count[tag] = all_tags.find_all{|t| t == tag}.size
+      end
+      all_tags = tags_with_count.to_a.sort {|x,y| y.last <=> x.last }
+      options[:limit].blank? ? all_tags : all_tags[0..(options[:limit]-1)]
+    end
+  end
+
   # Produces a byline that indicates the user's name if pseud is not unique
   def byline
     Pseud.count(:conditions => {:name => name}) > 1 ? name + " [" + user_name + "]" : name
+  end
+  
+  def unposted_works
+    @unposted_works = self.works.find(:all, :conditions => {:posted => false}, :order => 'works.created_at DESC')
   end
   
   # Takes a comma-separated list of bylines

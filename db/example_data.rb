@@ -5,17 +5,17 @@ module FixtureReplacement
   ## in the database - this is different from regular fixtures)
   ## Note2: fixtures must be valid to use create_. To test for errors, use new_
 
-  attributes_for :language do |a|
-    a.id = 1819
-    a.iso_639_1 = 'en'
-    a.english_name = 'English'
-  end
+#  attributes_for :language do |a|
+#    a.short = String.random[1..3]
+#    a.name = String.random
+#  end
 
-  attributes_for :country do |a|
-    a.id = 223
-    a.code = 'US'
-    a.english_name = 'United States of America'
-  end
+#  attributes_for :locale do |a|
+#    a.iso = String.random
+#    a.name = String.random
+#    a.main = true
+#    a.language = create_language
+#  end
 
   attributes_for :abuse_report do |a|
     a.email = random_email
@@ -34,7 +34,7 @@ module FixtureReplacement
 
   attributes_for :bookmark do |a|
     a.notes = random_phrase
-    a.user = default_user
+    a.pseud = default_pseud
     a.bookmarkable = default_work
   end
 
@@ -113,49 +113,49 @@ module FixtureReplacement
   end
 
   attributes_for :tag do |a|
-    a.name = random_phrase[1...42]
+    a.name = random_tag_name
     a.type = Tag::TYPES[rand(5)+3]
   end
 
   attributes_for :rating do |a|
-    a.name = random_phrase[1...42]
+    a.name = random_tag_name
     a.adult = false
   end
 
   attributes_for :warning do |a|
-    a.name = random_phrase[1...42]
+    a.name = random_tag_name
   end
 
   attributes_for :category do |a|
-    a.name = random_phrase[1...42]
+    a.name = random_tag_name
   end
 
   attributes_for :media do |a|
-    a.name = random_phrase[1...42]
+    a.name = random_tag_name
   end
 
   attributes_for :fandom do |a|
-    a.name = random_phrase[1...42]
+    a.name = random_tag_name
   end
 
   attributes_for :pairing do |a|
-    a.name = random_phrase[1...42]
+    a.name = random_tag_name[0...21] + '/' + random_tag_name[0...20]
   end
 
   attributes_for :character do |a|
-    a.name = random_phrase[1...42]
+    a.name = random_tag_name
   end
 
   attributes_for :freeform do |a|
-    a.name = random_phrase[1...42]
+    a.name = random_tag_name
   end
 
   attributes_for :ambiguity do |a|
-    a.name = random_phrase[1...42]
+    a.name = random_tag_name
   end
 
   attributes_for :banned do |a|
-    a.name = random_phrase[1...42]
+    a.name = random_tag_name
   end
 
   attributes_for :tagging do |a|
@@ -192,6 +192,12 @@ module FixtureReplacement
   ##### some random generators
   def random_word
     Faker::Lorem.words(1).to_s
+  end
+
+  def random_tag_name
+    name = random_phrase[1...42]
+    name = random_tag_name if Tag.find_by_name(name)
+    return name
   end
 
   def random_phrase(count=nil)  # 2-4 words

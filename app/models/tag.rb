@@ -32,11 +32,12 @@ class Tag < ActiveRecord::Base
 
   validates_presence_of :name
   validates_uniqueness_of :name
-  validates_length_of :name, :maximum => ArchiveConfig.TAG_MAX,
-                             :message => "is too long -- try using less than #{ArchiveConfig.TAG_MAX} characters or using commas to separate your tags.".t
+  validates_length_of :name, 
+    :maximum => ArchiveConfig.TAG_MAX,
+    :message => "is too long -- try using less than #{ArchiveConfig.TAG_MAX} characters or using commas to separate your tags."
   validates_format_of :name,
-                      :with => /\A[-a-zA-Z0-9 \/?.!''"":;\|\]\[}{=~!@#\$%^&()_+]+\z/,
-                      :message => "can only be made up of letters, numbers, spaces and basic punctuation, but not commas, asterisks or angle brackets.".t
+    :with => /\A[-a-zA-Z0-9 \/?.!''"":;\|\]\[}{=~!@#\$%^&()_+]+\z/,
+    :message => "can only be made up of letters, numbers, spaces and basic punctuation, but not commas, asterisks or angle brackets."
 
   def before_validation
     self.name = name.squish if self.name
@@ -49,16 +50,21 @@ class Tag < ActiveRecord::Base
 
   named_scope :by_popularity, {:order => 'taggings_count DESC'}
   named_scope :by_name, {:order => 'name ASC'}
-
+  
   named_scope :by_fandom, lambda{|fandom| {:conditions => {:fandom_id => fandom.id}}}
   named_scope :no_parent, :conditions => {:fandom_id => nil}
-
-  # enigel Feb 09
-  named_scope :starting_with, lambda {|letter|
-    {
-      :conditions => ['SUBSTR(name,1,1) = ?', letter]
+  
+  named_scope :by_pseud, lambda {|pseud|
+    { 
+      :joins => [{:works => :pseuds}],
+      :conditions => {:pseuds => {:id => pseud.id}}
     }
   }
+  
+  named_scope :by_type, lambda {|*types| {:conditions => (types.first.blank? ? {} : {:type => types.first})}}
+
+  # enigel Feb 09
+  named_scope :starting_with, lambda {|letter| {:conditions => ['SUBSTR(name,1,1) = ?', letter]}}
 
   # Class methods
 
@@ -91,7 +97,11 @@ class Tag < ActiveRecord::Base
   end
 
   def self.for_tag_cloud
-    Freeform.find(:all, :conditions => {:fandom_id => Fandom.find_by_name(ArchiveConfig.FANDOM_NO_TAG_NAME).id, :merger_id => nil}).sort
+    if fandom_no_tag_name = Fandom.find_by_name(ArchiveConfig.FANDOM_NO_TAG_NAME) 
+      if freeform = Freeform.find(:all, :conditions => {:fandom_id => fandom_no_tag_name.id, :merger_id => nil})
+        freeform.sort
+      end
+    end
   end
 
   # Instance methods that are common to all subclasses (may be overridden in the subclass)
@@ -542,7 +552,7 @@ class Tag < ActiveRecord::Base
     if User.current_user && User.current_user.kind_of?(Admin)
       conditions = {:private => false}
     elsif User.current_user.is_a? User
-      conditions = ['bookmarks.private = ? AND (bookmarks.hidden_by_admin = ? OR bookmarks.user_id = ?)', true, false, User.current_user.id]
+      conditions = ['bookmarks.private = ? AND (bookmarks.hidden_by_admin = ? OR bookmarks.pseud_id = ?)', true, false, User.current_user.pseuds.collect(&:id)]
     else
       conditions = {:private => false, :hidden_by_admin => false}
     end
