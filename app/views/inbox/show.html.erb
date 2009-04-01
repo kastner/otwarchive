@@ -54,6 +54,7 @@
       <%= "Mark checked as:" %> 
       <%= submit_tag t('read', :default => 'read') %>
       <%= submit_tag t('unread', :default => 'unread') %>
+      <%= submit_tag t('delete_from_inbox', :default => 'delete from inbox') %>
     </p>
 
     <table>
@@ -76,7 +77,7 @@
           <ul class="navigation">
             <li>
               <%= image_tag("replied_to.png", :size => "15x15", :alt => "Replied To") if inbox_comment.replied_to? %>
-              <%= link_to 'Reply', inbox_comment.feedback_comment %>
+              <%= inbox_reply_link(inbox_comment.feedback_comment) %>
             </li>
             <%- if @user.is_author_of?(inbox_comment.feedback_comment.ultimate_parent) -%>
             <li><%= 'Spam' %></li>
@@ -93,6 +94,7 @@
       <%= "Mark checked as:" %> 
       <%= submit_tag t('read', :default => 'read') %>
       <%= submit_tag t('unread', :default => 'unread') %>
+      <%= submit_tag t('delete_from_inbox', :default => 'delete from inbox') %>
     </p>
     <!-- coming soon <%= submit_tag t('mass_reply', :default => 'mass reply') %> -->
   <%- end -%>
