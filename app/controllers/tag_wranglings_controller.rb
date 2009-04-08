@@ -1,19 +1,7 @@
 class TagWranglingsController < ApplicationController
 
   before_filter :check_user_status
-  before_filter :check_tag_wrangler_status
-
-  def check_tag_wrangler_status
-    return true if logged_in_as_admin? || permit?("tag_wrangler")
-    if logged_in?
-      flash[:error] = t('errors.tag_wranglers_only', :default => 'You have to be a tag wrangler to access this page')
-      redirect_to current_user and return
-    else
-      store_location
-      flash[:error] = t('errors.please_log_in', :default => 'Please log in.')
-      redirect_to new_session_path and return
-    end
-  end
+  permit "tag_wrangler", :permission_denied_message => "Sorry, the page you tried to access is for authorized tag wranglers only."
 
   def index
   end
@@ -64,7 +52,9 @@ class TagWranglingsController < ApplicationController
       end
       if params[:merger]
         params[:merger].each do |key, value|
-          unless value.blank?
+          if value.blank?
+            Tag.find_by_id(key).remove_merger
+          else
             Tag.find_by_id(key).wrangle_merger(Tag.find_by_id(value))
           end
         end
@@ -88,11 +78,14 @@ class TagWranglingsController < ApplicationController
       render :action => "edit"
     else
       flash[:error] = t('choose_something', :default => "Please choose something")
-     redirect_to :back and return
+      redirect_to :back and return
     end
   end
 
   def assign
+    if (params[:commit] == "Go") && params[:date] && params[:date][:tag_age]
+      @tag_age = params[:date][:tag_age]
+    end
     @category = params[:id]
     if @category == "Fandom"
       @possible_parents = Media.canonical.by_name
@@ -102,7 +95,7 @@ class TagWranglingsController < ApplicationController
       flash[:error] = t('mass_assign', :default => "Sorry, you can't mass assign that")
      redirect_to :back and return
     end
-    @tags = @category.constantize.no_parent.by_name
+    @tags = params[:list] == "by_date" ? @category.constantize.no_parent.by_date : @category.constantize.no_parent.by_name
     @local_alphabet = @tags.collect {|tag| tag.name[0,1].downcase}.uniq.sort # enigel Feb 09
   end
 

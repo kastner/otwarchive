@@ -229,6 +229,23 @@ class WorkTest < ActiveSupport::TestCase
     end
   end
 
+  context "a work with a tag" do
+    setup do
+      @work = create_work
+      @work.add_default_tags
+      @pairing = create_pairing
+      @work.pairing_string=@pairing.name
+    end
+    context "when the tag is removed" do
+      setup do
+        @work.pairing_string=""
+      end
+      should "delete the tag" do
+        assert_raises(ActiveRecord::RecordNotFound) { @pairing.reload }
+      end
+    end
+  end
+
   def test_number_of_chapters
     work = create_work
     assert 1, work.number_of_chapters
@@ -267,7 +284,7 @@ class WorkTest < ActiveSupport::TestCase
     assert !work.is_complete
     assert_equal 2, work.expected_number_of_chapters
     # author creates the second chapter
-    create_chapter(:work => work, :authors => work.pseuds)
+    create_chapter(:work => work, :authors => work.pseuds, :position => 2)
     work.reload
     assert work.is_complete
     assert !work.is_wip

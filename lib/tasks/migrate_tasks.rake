@@ -118,4 +118,20 @@ namespace :After do
       end
     end
   end
+  desc "remove invalid inbox comments"
+  task(:revision_1207_clean_up_inbox => :environment) do
+    InboxComment.all.each do |i|
+      if i.feedback_comment.nil? || i.user.nil?
+        i.destroy
+      end
+    end
+  end
+  desc "remove invalid taggings"
+  task(:revision_1223_clean_up_taggings => :environment) do
+    Tagging.all.each do |t|
+      if t.taggable.nil? || t.tagger.nil?
+        t.destroy
+      end
+    end
+  end
 end

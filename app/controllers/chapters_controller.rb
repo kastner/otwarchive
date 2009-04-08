@@ -4,48 +4,11 @@ class ChaptersController < ApplicationController
   before_filter :load_work, :except => [:auto_complete_for_pseud_name, :update_positions]
   before_filter :set_instance_variables, :only => [ :new, :create, :edit, :update, :preview, :post ]
   # only authors of a work should be able to edit its chapters
-  before_filter :is_author, :only => [ :edit, :update, :manage ]
-  before_filter :check_permission_to_view, :only => [:index, :show]
+  before_filter :check_ownership, :only => [ :edit, :update, :manage, :destroy ]
+  before_filter :check_visibility, :only => [:index, :show]
   before_filter :check_adult_status, :only => [:index, :show]
   before_filter :check_user_status, :only => [:new, :create, :edit, :update]
-  
-  # For the auto-complete field in the works form
-  def auto_complete_for_pseud_byline
-    byline = request.raw_post.to_s.strip
-    if byline.include? "["
-      split = byline.split('[', 2)
-      pseud_name = split.first.strip
-      user_login = split.last.strip.chop
-      conditions = [ 'LOWER(users.login) LIKE ? AND LOWER(name) LIKE ?','%' + user_login + '%',  '%' + pseud_name + '%' ]
-    else
-      conditions = [ 'LOWER(name) LIKE ?', '%' + byline + '%' ]
-    end
-    @pseuds = Pseud.find(:all, :include => :user, :conditions => conditions, :limit => 10)
-    render :inline => "<%= auto_complete_result(@pseuds, 'byline')%>"
-  end
-
-  def access_denied
-    flash[:error] = t('please_log_in', :default => "Please log in first.")
-   store_location
-    redirect_to new_session_path
-    false
-  end
     
-  # Only authors of the work should be able to edit it
-  def is_author
-    @work = Work.find(params[:work_id])
-    unless current_user.is_a?(User) && current_user.is_author_of?(@work)
-      flash[:error] = t('errors.no_permission_to_edit', :default => "Sorry, but you don't have permission to make edits.")
-     redirect_to(@work)     
-    end
-  end 
-  
-  # Only authorized users should be able to access restricted/hidden works
-  def check_permission_to_view
-    can_view_hidden = is_admin? || (current_user.is_a?(User) && current_user.is_author_of?(@work))
-	  access_denied if (!is_registered_user? && @work.restricted?) || (!can_view_hidden && @work.hidden_by_admin?)
-  end
-  
   # Users must explicitly okay viewing of adult content
   def check_adult_status
     if params[:view_adult]
@@ -57,7 +20,9 @@ class ChaptersController < ApplicationController
   
   # fetch work these chapters belong to from db
   def load_work
-    @work = params[:work_id] ? Work.find(params[:work_id]) : Chapter.find(params[:id]).work  
+    @work = params[:work_id] ? Work.find(params[:work_id]) : Chapter.find(params[:id]).work
+    @check_ownership_of = @work
+    @check_visibility_of = @work  
   end
   
   # Sets values for @chapter, @coauthor_results, @pseuds, and @selected_pseuds
@@ -81,7 +46,7 @@ class ChaptersController < ApplicationController
     elsif params[:chapter] # create
       @chapter = @work.chapters.build(params[:chapter])
     else # new
-      @chapter = @work.chapters.build
+      @chapter = @work.chapters.build(:position => @work.number_of_chapters + 1)
     end
 
     @allpseuds = (current_user.pseuds + (@work.authors ||= []) + @work.pseuds + (@chapter.authors ||= []) + (@chapter.pseuds ||= [])).uniq    
@@ -167,9 +132,8 @@ class ChaptersController < ApplicationController
       if @chapter.save && @work.save
         @work.update_major_version
         @work.set_revised_at(@chapter.created_at)
-				@chapter.move_to(@chapter.position_placeholder) if @chapter.position_placeholder
         flash[:notice] = t('preview', :default => "This is a preview of what this chapter will look like when it's posted to the Archive. You should probably read the whole thing to check for problems before posting.")
-       redirect_to [:preview, @work, @chapter]
+        redirect_to [:preview, @work, @chapter]
       else
         render :action => :new 
       end
@@ -178,8 +142,7 @@ class ChaptersController < ApplicationController
   
   # PUT /work/:work_id/chapters/1
   # PUT /work/:work_id/chapters/1.xml
-  def update
-   
+  def update   
     @chapter.attributes = params[:chapter]
     @work.wip_length = params[:chapter][:wip_length]
     load_pseuds
@@ -197,8 +160,7 @@ class ChaptersController < ApplicationController
     else
       params[:chapter][:posted] = true if params[:post_button]
       if @chapter.update_attributes(params[:chapter]) && @work.save
-        @work.update_minor_version      
-        @chapter.move_to(@chapter.position_placeholder) if @chapter.position_placeholder
+        @work.update_minor_version
         flash[:notice] = t('successfully_updated', :default => 'Chapter was successfully updated.')
         redirect_to [@work, @chapter]
       else
@@ -210,7 +172,7 @@ class ChaptersController < ApplicationController
   def update_positions
     if params[:chapters]
       @work = Work.find(params[:work_id])
-      @work.reorder_chapters(params[:chapters]) 
+      @work.reorder(params[:chapters]) 
       flash[:notice] = t('order_updated', :default => 'Chapter orders have been successfully updated.')
       redirect_to(@work)
     else 
@@ -251,9 +213,12 @@ class ChaptersController < ApplicationController
       flash[:error] = t('deleting_only_chapter', :default => "You can't delete the only chapter in your story. If you want to delete the story, choose 'Delete work'.")
       redirect_to(edit_work_url(@work))
     else
-      @chapter.destroy
-      @work.adjust_chapters(@chapter.position)
-      @work.update_minor_version
+      if @chapter.destroy
+        @work.update_minor_version
+        flash[:notice] = t('successfully_deleted', :default => "The chapter was successfully deleted.")
+      else
+        flash[:error] = t('delete_failed', :default => "Something went wrong. Please try again.")
+      end
       redirect_to(edit_work_url(@work))
     end
   end
