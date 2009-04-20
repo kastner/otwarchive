@@ -47,7 +47,7 @@ INVITATION_LIMIT: 1
 
 # validation values -- max/min lengths
 TITLE_MAX: 255
-TITLE_MIN: 3
+TITLE_MIN: 1
 SUMMARY_MAX: 1250
 NOTES_MAX: 2500
 COMMENT_MAX: 4300
@@ -112,7 +112,7 @@ MAX_RECENT: 20
 
 # Only the following fields are allowed to have HTML. In all others,
 # all HTML tags will be stripped.
-FIELDS_ALLOWING_HTML: %w(content summary notes about_me comment)
+FIELDS_ALLOWING_HTML: %w(content summary notes about_me comment note)
 
 # variables for Askimet http://akismet.com/
 AKISMET_KEY: '6833ee7298cf'

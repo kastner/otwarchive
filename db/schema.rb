@@ -1,4 +1,4 @@
-# This file is auto-generated from the current state of the database. Instead of editing this file,
+# This file is auto-generated from the current state of the database. Instead of editing this file, 
 # please use the migrations feature of Active Record to incrementally modify your database, and
 # then regenerate this schema definition.
 #
@@ -9,7 +9,7 @@
 #
 # It's strongly recommended to check this file into your version control system.
 
-ActiveRecord::Schema.define(:version => 20090331012516) do
+ActiveRecord::Schema.define(:version => 20090420032457) do
 
   create_table "abuse_reports", :force => true do |t|
     t.string   "email"
@@ -73,12 +73,13 @@ ActiveRecord::Schema.define(:version => 20090331012516) do
     t.string   "user_agent"
     t.boolean  "approved",                      :default => false, :null => false
     t.boolean  "hidden_by_admin",               :default => false, :null => false
+    t.datetime "edited_at"
   end
 
   create_table "common_taggings", :force => true do |t|
-    t.integer  "common_tag_id",   :limit => 8, :null => false
-    t.integer  "filterable_id",   :limit => 8, :null => false
-    t.string   "filterable_type", :limit => 50, :null => false
+    t.integer  "common_tag_id",   :limit => 8,   :null => false
+    t.integer  "filterable_id",   :limit => 8,   :null => false
+    t.string   "filterable_type", :limit => 100
     t.datetime "created_at"
     t.datetime "updated_at"
   end
@@ -257,10 +258,10 @@ ActiveRecord::Schema.define(:version => 20090331012516) do
   end
 
   create_table "tag_categories", :force => true do |t|
-    t.string   "name",   :limit => 100, :default => "",    :null => false
-    t.boolean  "required",     :default => false, :null => false
-    t.boolean  "official",     :default => false, :null => false
-    t.boolean  "exclusive",    :default => false, :null => false
+    t.string   "name",         :limit => 100
+    t.boolean  "required",                    :default => false, :null => false
+    t.boolean  "official",                    :default => false, :null => false
+    t.boolean  "exclusive",                   :default => false, :null => false
     t.datetime "created_at"
     t.datetime "updated_at"
     t.string   "display_name"
@@ -285,31 +286,40 @@ ActiveRecord::Schema.define(:version => 20090331012516) do
 
   create_table "taggings", :force => true do |t|
     t.integer  "tagger_id",     :limit => 8
-    t.integer  "taggable_id",   :limit => 8,                 :null => false
-    t.string   "taggable_type", :limit => 100, :default => "", :null => false
+    t.integer  "taggable_id",   :limit => 8,                   :null => false
+    t.string   "taggable_type", :limit => 100, :default => ""
     t.datetime "created_at"
     t.datetime "updated_at"
-    t.string   "tagger_type", :limit => 100
+    t.string   "tagger_type",   :limit => 100, :default => ""
   end
 
   add_index "taggings", ["tagger_id", "tagger_type", "taggable_id", "taggable_type"], :name => "index_taggings_polymorphic", :unique => true
 
   create_table "tags", :force => true do |t|
-    t.string   "name", :limit => 100,  :default => "",    :null => false
-    t.boolean  "canonical",                    :default => false, :null => false
+    t.string   "name",            :limit => 100, :default => ""
+    t.boolean  "canonical",                      :default => false, :null => false
     t.integer  "tag_category_id", :limit => 8
     t.datetime "created_at"
     t.datetime "updated_at"
-    t.integer  "taggings_count",  :limit => 8, :default => 0
-    t.boolean  "adult",                        :default => false
+    t.integer  "taggings_count",  :limit => 8,   :default => 0
+    t.boolean  "adult",                          :default => false
     t.string   "type"
     t.integer  "media_id",        :limit => 8
     t.integer  "fandom_id",       :limit => 8
     t.integer  "merger_id",       :limit => 8
-    t.boolean  "has_characters",               :default => false, :null => false
+    t.boolean  "has_characters",                 :default => false, :null => false
   end
 
   add_index "tags", ["name"], :name => "index_tags_on_name", :unique => true
+
+  create_table "translation_notes", :force => true do |t|
+    t.text     "note"
+    t.string   "namespace"
+    t.integer  "user_id"
+    t.integer  "locale_id"
+    t.datetime "created_at"
+    t.datetime "updated_at"
+  end
 
   create_table "translations", :force => true do |t|
     t.string   "tr_key"
@@ -322,6 +332,7 @@ ActiveRecord::Schema.define(:version => 20090331012516) do
     t.boolean  "betaed",        :default => false, :null => false
     t.integer  "translator_id"
     t.integer  "beta_id"
+    t.boolean  "translated",    :default => false, :null => false
   end
 
   add_index "translations", ["tr_key", "locale_id", "updated_at"], :name => "index_translations_on_tr_key_and_locale_id_and_updated_at"
@@ -338,12 +349,12 @@ ActiveRecord::Schema.define(:version => 20090331012516) do
     t.datetime "activated_at"
     t.string   "crypted_password"
     t.string   "salt"
-    t.string   "identity_url", :limit => 191
-    t.boolean  "recently_reset",                         :default => false, :null => false
-    t.boolean  "suspended",                              :default => false, :null => false
-    t.boolean  "banned",                                 :default => false, :null => false
+    t.string   "identity_url",              :limit => 191
+    t.boolean  "recently_reset",                           :default => false, :null => false
+    t.boolean  "suspended",                                :default => false, :null => false
+    t.boolean  "banned",                                   :default => false, :null => false
     t.integer  "invitation_id",             :limit => 8
-    t.integer  "invitation_limit",          :limit => 8, :default => 1
+    t.integer  "invitation_limit",          :limit => 8,   :default => 1
   end
 
   add_index "users", ["identity_url"], :name => "index_users_on_identity_url", :unique => true
@@ -365,6 +376,8 @@ ActiveRecord::Schema.define(:version => 20090331012516) do
     t.boolean  "delta",                                    :default => false
     t.datetime "published_at"
     t.datetime "revised_at"
+    t.string   "authors_to_sort_on"
+    t.string   "title_to_sort_on"
   end
 
 end

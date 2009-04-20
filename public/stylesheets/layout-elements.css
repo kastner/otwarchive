@@ -43,8 +43,8 @@ ul#main-navigation { position: relative; clear: both; border-left: 1px solid #11
 
 /*DASHBOARD SIDEBAR */
 #dashboard-sidebar { line-height:1.75; float: left; width: 10em; margin: 0 1em 3em 1.5em; border: 2px solid;}
-#dashboard-sidebar ul { text-indent:0.5625em; }
-#dashboard-sidebar li { font-weight: 600;}
+#dashboard-sidebar ul { font-size:0.9em; line-height:1.2em; padding: 0 0.5625em; }
+#dashboard-sidebar li { font-weight: 600; margin: 0.55em 0; }
 #dashboard-sidebar a { font-weight: normal; text-decoration: none; display: block;}
 #dashboard-sidebar a:hover { background: #900; color: #fffef9; }
 
@@ -53,7 +53,7 @@ ul#main-navigation { position: relative; clear: both; border-left: 1px solid #11
 #main.sidebar .own {background:#fffef9 !important; border:1px dotted #ccc;}
 
 /* garrish addition by Enigel Dec 5 08 */
-#dashboard-sidebar ul.pseud_selector_sidebar { background-color:#ffeeee; border:#990000 solid thin;}
+#dashboard-sidebar ul.pseud_selector_sidebar { border-bottom:.25em double black;}
 
 /*MAIN CONTENT */
 #main { position: relative; margin: 1.5em auto; padding: 0 3.5em; }
@@ -112,6 +112,11 @@ dl#user-data dt {font-weight: 900; width: 9em; float:left; clear:left; margin:0.
 #main.pseuds-show.sidebar dt { font-weight:600; float:left; clear:left; width:12em; margin: 0; padding:0.25em 0.5625em 0.25em 0}
 #main.pseuds-show.sidebar dd { float:left; }
 */
+.pseuds-list li { border-bottom:1px dotted #CCCCCC; padding-bottom: 0.5em; margin-bottom: 1.5em !important}
+.pseuds-list .navigation a {background:url(/images/ccc-fff.png) top left repeat-x #fff; border:none; border:1px solid #ccc; padding:0.25em;}
+.pseuds-list .navigation, .pseuds-list .navigation li {border:0; background:transparent;}
+.pseuds-list ul.navigation {margin: 1em 0 -0.75em 0; text-align: left}
+
 /* WORKS-INDEX */
 /*work filters rules are in forms.css */
 /*works blurb : shows on works, reading history, series, should be spoofed on bookmarks and users-show*/
@@ -134,8 +139,8 @@ li.heading {position:relative; }
 
 .work p.update {font-size:0.875em; text-align:right; top:-0.875em; right:0; position:absolute; }
 .work dl.tags {padding-top:0.5625em;}
-.work .tags dt {font-weight:bold; width:5em; padding:0.25em 0.5625em 0.25em 0; }
-.work .tags ul {margin:-2.25em 0 .75em 5.5em; text-indent:0; padding:0;}
+.work .tags dt {font-weight:bold; width:6em; padding:0.25em 0.5625em 0.25em 0; }
+.work .tags ul {margin:-2.25em 0 .75em 6em; text-indent:0; padding:0;}
 .work li.summary {margin:0.5625em auto; padding:0.25em 0.25em 0 0;}
 .work li.stats dl {text-align:right;}
 .work li.stats dt, .work li.stats dd {display:inline; font-size:0.875em}
@@ -162,10 +167,11 @@ ul#series-work-list li.work ul.work li ul li {display:inline;}
 .media-index li.even { width: 40%; float: right; margin: 0 0 0 0.5625em; }
 
 /* PEOPLE-INDEX */
-.user div { position: relative; margin: 0 0 0.5625em auto;padding-right:0.3775em; border-bottom:1px solid #ddd;}
+.user div { position: relative; margin: 0 0 0.5625em auto;padding-right:0.3775em; border-bottom:1px solid #ddd; clear:both; overflow:auto;}
 .user h3,.user h3 a { color:#900;display:inline; }
-.user img {top:0; right:0; position:absolute}
-.user ul li {display:inline;}
+.user img {float:left; padding: 0 1em 1em 0; clear:both;}
+.user ul, .user li {display:inline;}
+.user .author-data {border:0; float:left; clear:right; width:70%; overflow:visible}
 /*
 .user ul.tags:before {content:" { ";}
 .user ul.tags:after {content:" } ";}
@@ -217,6 +223,8 @@ dl.translations {position:relative; margin: 1.5em auto; padding: 1.5em 0 2.5em; 
 .home-tos_faq #contents {width: 60%; margin:auto; padding:1em;}
 .home-tos_faq #contents h2 {text-align:center;}
 .home-tos_faq #contents ul li {border-bottom:1px solid #ddd;}
+/* added 19 Feb 09 - Cal */
+#main.orphans-about #contents li {list-style-type: disc !important; margin-left: 2em;}
 
 /*SYMBOLS KEY 
 *this really ought to go somewhere else but it's here for now 02-10-08 */

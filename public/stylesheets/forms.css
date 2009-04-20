@@ -39,13 +39,6 @@ img#openid	{ margin-left:-20px; vertical-align:middle; }
 /*REPORT ABUSE */
 #main.abuse_reports-new dt { width:100%; float:none; }
 
-/*TRANSLATION */
-.translations form {position:relative;}
-.translations textarea { border:1px groove #aaa; float:left; width:69%;}
-.translations form input {background:url(../images/fff-ccc.png) bottom left repeat-x #fff; border:1px groove #aaa; float:right; width:29%; padding:0.625em; margin-top:0.1em;}
-.translations form input:hover { border:1px groove #666;}
-.translations form input:active { background:url(../images/ccc-fff.png) top left repeat-x #fff; border:1px groove #aaa;}
-.translations textarea:hover,.translations textarea:active { background:#d1e1ef;}
 
 /* POST WORK */
 /*work-meta  and work-show rules in work-views.css */
@@ -125,5 +118,8 @@ textarea#comment_content	{ width:32em !important; height:11em !important}
 
 /*TAG WRANGLINGS*/
 form#wrangle-select-fandom p, form#wrangle-select-media p{ display:inline; margin-right:0.5625em;}
+
+/* TAGS */
+#edit-tag input[readonly] { background:#ededde; border:1px solid #dfdffd;}
 
 /* GLOBALIZE (in footer) you can find this in globalize.css*/

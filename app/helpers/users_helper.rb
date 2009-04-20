@@ -71,6 +71,19 @@ module UsersHelper
     link_to_unless_current "My Drafts" + " (#{total})", drafts_user_works_path(@user)
   end
   
+  def authored_items(pseud)
+    visible_works = pseud.visible_works_count
+    visible_bookmarks_count = logged_in_as_admin? ? pseud.bookmarks.count : pseud.bookmarks.visible.size
+    items = (visible_works == 1) ? link_to(visible_works.to_s + " work", user_pseud_works_path(pseud.user, pseud)) : ((visible_works > 1) ? link_to(visible_works.to_s + " works", user_pseud_works_path(pseud.user, pseud)) : "")
+    if (visible_works > 0) && (visible_bookmarks_count > 0)
+      items += " | "
+    end
+    if visible_bookmarks_count > 0
+      items += (visible_bookmarks_count == 1) ? link_to(visible_bookmarks_count.to_s + " bookmark", user_pseud_bookmarks_path(pseud.user, pseud)) : link_to(visible_bookmarks_count.to_s + " bookmarks", user_pseud_bookmarks_path(pseud.user, pseud))
+    end
+    return items
+  end
+  
 #  def print_pseud_drafts_link(pseud)
 #    total = pseud.unposted_works.size
 #    link_to_unless_current "My Drafts" + " (#{total})", drafts_user_pseud_works_path(@user, pseud)
@@ -84,16 +97,16 @@ module UsersHelper
   def authors_header(collection)
     if collection.total_pages < 2
       case collection.size
-      when 0; "0 Authors"
-      when 1; "1 Author"
-      else; collection.total_entries.to_s + " Authors"
+      when 0; "0 People"
+      when 1; "1 Person"
+      else; collection.total_entries.to_s + " People"
       end
     else
       %{ %d - %d of %d }% [
         collection.offset + 1,
         collection.offset + collection.length,
         collection.total_entries
-      ] + "Authors"
+      ] + "People"
     end
   end
   

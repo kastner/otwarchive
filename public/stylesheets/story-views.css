@@ -2,7 +2,7 @@
 /*
 set work styles
 */
-.work-show { font-family:Candara, Corbel, Geneva, Verdana, Helvetica, Arial, sans-serif; padding:1.5em 3.5em 6em 3.5em;}
+.work-show { font-family:Geneva, Verdana, Helvetica, Arial, sans-serif; padding:1.5em 3.5em 6em 3.5em;}
 .work-show a, .work-show a:link { color:#111; text-decoration:none; border-bottom:1px dotted #777; padding-right:0.125em}
 .work-show .navigation a, .work-show .navigation a:link {border:0;text-decoration:underline;}
 .work-show a:hover { border-bottom:0}
@@ -44,6 +44,14 @@ set work styles
 .dropcap	{ font:3em Georgia, serif; }
 .flashback	{ font-style:italic; }
 .caps	{ font-variant:small-caps}
+
+/* date and length info */
+.work-date-info {border-bottom: 1px solid black; font-size:.8em; padding:.5em; margin-bottom:2em;}
+.work-date-info dl {border:0; display:inline;}
+.work-date-info dt, .work-date-info dd {font-weight:normal; display:inline;}
+.work-date-info dd {padding:0 2em 0 1em;}
+.work-date-info ul {display:inline;}
+.work-date-info li {display:inline; margin-right:0; padding-left:2em;}
 
 /* WORK META DATA */
 dl.work-meta { background:#eee; padding:0.25em; position:relative;margin-top:0; border:1px solid #ddd;;}
