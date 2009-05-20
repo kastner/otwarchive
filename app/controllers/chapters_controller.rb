@@ -82,23 +82,18 @@ class ChaptersController < ApplicationController
   # GET /work/:work_id/chapters/1
   # GET /work/:work_id/chapters/1.xml
   def show
-    unless @work.visible || is_admin?
-      if !current_user.is_a?(User)
-        store_location 
-        redirect_to new_session_path and return        
-      elsif !current_user.is_author_of?(@work)
-  	    flash[:error] = t('not_visible', :default => 'This page is unavailable.')
-       redirect_to works_path and return
-      end
-    end
     @chapter = @work.chapters.find(params[:id])
-    @chapters = [@chapter]
-    @commentable = @work
-    @comments = @chapter.comments
-    respond_to do |format|
-      format.html
-      format.js
-    end
+    if @chapter.posted? || (logged_in? && current_user.is_author_of?(@work))
+      @chapters = [@chapter]
+      @commentable = @work
+      @comments = @chapter.comments
+      respond_to do |format|
+        format.html
+        format.js
+      end
+    else
+      access_denied
+    end 
   end
   
   # GET /work/:work_id/chapters/new
@@ -191,7 +186,7 @@ class ChaptersController < ApplicationController
   # POST /chapters/1/post
   def post
     if params[:cancel_button]
-      redirect_back_or_default('/') 
+      redirect_to @work 
     elsif params[:edit_button]
       redirect_to [:edit, @work, @chapter]
     else

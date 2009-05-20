@@ -7,14 +7,21 @@ class CommentsController < ApplicationController
   before_filter :check_user_status, :only => [:new, :create, :edit, :update, :destroy]
   before_filter :load_comment, :only => [:show, :edit, :update, :delete_comment, :destroy]
   before_filter :check_visibility, :only => [:show]
-  before_filter :check_ownership, :only => [:edit, :update, :delete_comment, :destroy]
+  before_filter :check_ownership, :only => [:edit, :update]
   before_filter :check_permission_to_edit, :only => [:edit, :update ]
-
+  before_filter :check_permission_to_delete, :only => [:delete_comment, :destroy]
+  
   def load_comment
     @comment = Comment.find(params[:id])
     @check_ownership_of = @comment
     @check_visibility_of = @comment
   end
+  
+  # Must be able to delete other people's comments on owned works, not just owned comments!
+  def check_permission_to_delete
+    access_denied(:redirect => @comment) unless current_user_owns?(@comment) || current_user_owns?(@comment.ultimate_parent)
+  end
+  
   
   # Comments cannot be edited after they've been replied to
   def check_permission_to_edit

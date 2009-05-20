@@ -79,8 +79,6 @@ class UserMailer < ActionMailer::Base
     setup_email(user)
     @subject    += "Co-Author Notification"
     @body[:work] = work
-    @body[:work_link] = @body[:url] + "/works/#{work.id}"
-    @body[:url] += "/works/#{work.id}/edit"
   end 
    
   # Sends emails to authors whose stories were listed as the inspiration of another work
@@ -88,7 +86,6 @@ class UserMailer < ActionMailer::Base
     setup_email(user)
     @subject    += "Related work notification"
     @body[:related_work] = related_work
-    @body[:url] += "/related_works/#{related_work.id}"     
   end
    
   # Sends email to authors when a work is edited
@@ -101,10 +98,38 @@ class UserMailer < ActionMailer::Base
   # Sends email to authors when a creation is deleted
   def delete_work_notification(user, work)
     setup_email(user)
+    @content_type = "multipart/mixed"
     @subject    += "Your story has been deleted"
     @body[:work] = work
+
+    part :content_type => "text/html", :body => render_message("delete_work_notification.html", :work => work)  
+    
+    work_copy = generate_attachment_from_work(work)
+    part :content_type => "multipart/mixed" do |p|
+      p.attachment :content_type => "text/plain", :filename => work.title.gsub(/[*:?<>|\/\\\"]/,'') + ".txt", :body => work_copy
+      p.attachment :content_type => "text/plain", :filename => work.title.gsub(/[*:?<>|\/\\\"]/,'') + ".html", :body => work_copy
+    end
   end
 
+  def generate_attachment_from_work(work)
+    attachment_string =  "Title: " + work.title + "<br />" + "by " + work.pseuds.collect(&:name).join(", ") + "<br />\n"
+    attachment_string += "<br/>Tags: " + work.tags.collect(&:name).join(", ") + "<br/>\n" unless work.tags.blank?
+    attachment_string += "<br/>Summary: " + work.summary + "<br/>\n" unless work.summary.blank?
+    attachment_string += "<br/>Notes: " + work.notes + "<br/>\n" unless work.notes.blank?
+    attachment_string += "<br/>Published at: " + work.published_at.to_s + "<br/>\n" unless work.published_at.blank?
+    attachment_string += "Revised at: " + work.revised_at.to_s + "<br/>\n" unless work.revised_at.blank?
+
+    work.chapters.each do |chapter|
+      attachment_string += "<br/>Chapter " + chapter.position.to_s unless !work.chaptered?
+      attachment_string += ": " + chapter.title unless chapter.title.blank?
+      attachment_string += "\n<br/>by: " + chapter.pseuds.collect(&:name).join(", ") + "<br />\n" unless chapter.pseuds.sort == work.pseuds.sort
+      attachment_string += "<br/>Summary: " + chapter.summary + "<br/>\n" unless chapter.summary.blank?
+      attachment_string += "<br/>Notes: " + chapter.notes + "<br/>\n" unless chapter.notes.blank?
+      attachment_string += "<br/>" + chapter.content + "<br />\n"
+    end
+    return attachment_string
+  end
+  
   protected
    
     def setup_email(user)
@@ -125,6 +150,7 @@ class UserMailer < ActionMailer::Base
       @subject     = "[#{ArchiveConfig.APP_NAME}] "
       @sent_on     = Time.now
       @body[:url]  = ArchiveConfig.APP_URL
+      @body[:host] = ArchiveConfig.APP_URL.gsub(/http:\/\//, '')
       @content_type = "text/html"
     end
      

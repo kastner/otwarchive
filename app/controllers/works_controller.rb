@@ -123,7 +123,7 @@ class WorksController < ApplicationController
       end
 
       unless @works.empty?
-        @filters = Work.get_filters(@works)
+        @filters = Work.build_filters_new(@works)
       end
     else
       # we're browsing instead
@@ -231,10 +231,10 @@ class WorksController < ApplicationController
     if logged_in? && !current_user.preference.work_title_format.blank?
       @page_title = current_user.preference.work_title_format
       @page_title.gsub!(/FANDOM/, @work.fandoms.string)
-      @page_title.gsub!(/AUTHOR/, @work.pseuds.collect(&:name).join(','))
+      @page_title.gsub!(/AUTHOR/, @work.pseuds.sort.collect(&:byline).join(', '))
       @page_title.gsub!(/TITLE/, @work.title)
     else
-      @page_title = @work.title + " - " + @work.pseuds.collect(&:name).join(',') + " - " + @work.fandom_string
+      @page_title = @work.title + " - " + @work.pseuds.sort.collect(&:byline).join(', ') + " - " + @work.fandom_string
     end
     @page_title += " [#{ArchiveConfig.APP_NAME}]"
   end
@@ -400,14 +400,15 @@ class WorksController < ApplicationController
       url = params[:work_url].to_s
       if url.empty?
         flash.now[:error] = t('enter_an_url', :default => "Did you want to enter a URL?")
-     else
+      else
         begin
           @work = storyparser.download_and_parse_story(url)
         rescue Timeout::Error
           flash.now[:error] = t('timed_out', :default => "Sorry, but we timed out trying to get that URL.")
-       rescue
+        rescue
           flash.now[:error] = t('upload_failed', :default => "Sorry, but we couldn't find a story at that URL. You can still copy-and-paste the contents into our standard form, though!")
-       end
+        end
+        
         begin
           @chapter = @work.chapters.first
           @work.pseuds << current_user.default_pseud
@@ -415,14 +416,14 @@ class WorksController < ApplicationController
           if (work_saved = @work.save) && @chapter.save
             flash[:notice] = t('successfully_uploaded', :default => "Work successfully uploaded!<br />
               (You will want to check the results over carefully before posting, though, because the poor computer can only figure out so much.)")
-           redirect_to edit_work_path(@work) and return
+            redirect_to edit_work_path(@work) and return
           else
             render :action => :new and return
           end
         rescue
           flash.now[:error] = t('partially_downloaded', :default => "We managed to partially download the work, but there are problems
             preventing us from saving it as a draft. Please look over the results very carefully!")
-         render :action => :new and return
+          render :action => :new and return
         end
       end
       @use_upload_form = true
@@ -436,11 +437,11 @@ class WorksController < ApplicationController
   protected
 
   def load_pseuds
-      @allpseuds = (current_user.pseuds + (@work.authors ||= []) + @work.pseuds).uniq
-      @pseuds = current_user.pseuds
-      @coauthors = @allpseuds.select{ |p| p.user.id != current_user.id}
-      to_select = @work.authors.blank? ? @work.pseuds.blank? ? [current_user.default_pseud] : @work.pseuds : @work.authors
-      @selected_pseuds = to_select.collect {|pseud| pseud.id.to_i }.uniq
+    @allpseuds = (current_user.pseuds + (@work.authors ||= []) + @work.pseuds).uniq
+    @pseuds = current_user.pseuds
+    @coauthors = @allpseuds.select{ |p| p.user.id != current_user.id}
+    to_select = @work.authors.blank? ? @work.pseuds.blank? ? [current_user.default_pseud] : @work.pseuds : @work.authors
+    @selected_pseuds = to_select.collect {|pseud| pseud.id.to_i }.uniq
   end
 
   # create a reading object when showing a work, but only if the user has reading
