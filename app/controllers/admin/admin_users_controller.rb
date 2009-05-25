@@ -3,12 +3,15 @@ class Admin::AdminUsersController < ApplicationController
   before_filter :admin_only
 
   def index
-    if params[:letter] && params[:letter].is_a?(String)
-      letter = params[:letter][0,1]
-    else
-      letter = User::ALPHABET[0]
+    if !params[:pseud].blank?
+      @users = Pseud.find(:all, :conditions => ['name LIKE ?', "%#{params[:pseud]}%"]).collect(&:user).uniq
+    elsif params[:role] == "0"
+      flash[:error] = "Please select at least one parameter for your search!"
+      redirect_to :back and return
     end
-    @users = User.alphabetical.starting_with(letter)
+    if params[:role] && params[:role] != "0"
+      @users = (@users || User.all).select{|u| u.roles.collect(&:name).include?(params[:role])}.uniq
+    end
   end 
 
   # GET admin/users/1
@@ -21,7 +24,7 @@ class Admin::AdminUsersController < ApplicationController
   def edit
     @user = User.find_by_login(params[:id])
     unless @user
-      redirect_to :action => "index", :letter => params[:letter]
+      redirect_to :action => "index", :pseud => params[:pseud], :role => params[:role]
     end
   end
 
@@ -32,10 +35,10 @@ class Admin::AdminUsersController < ApplicationController
     @user.attributes = params[:user]
     if @user.save(false)
       flash[:notice] = t('successfully_updated', :default => 'User was successfully updated.')
-     redirect_to :action => "index", :letter => params[:letter]
+      redirect_to :action => "index", :pseud => params[:pseud], :role => params[:role]
     else
       flash[:error] = t('error_updating', :default => 'There was an error updating user {{name}}', :name => params[:user][:login])
-      redirect_to :action => "index", :letter => params[:letter]
+      redirect_to :action => "index", :pseud => params[:pseud], :role => params[:role]
     end
   end
 
@@ -48,16 +51,29 @@ class Admin::AdminUsersController < ApplicationController
   end
   
   def notify
-    @users = User.alphabetical
+    if params[:letter] && params[:letter].is_a?(String)
+      letter = params[:letter][0,1]
+    else
+      letter = User::ALPHABET[0]
+    end
+    @all_users = User.alphabetical.starting_with(letter)
   end
   
   def send_notification
-    if params[:notify_all] == "1"
-      @users = User.all
+    if !params[:notify_all].blank?
+      if params[:notify_all].include?("0")
+        @users = User.all
+      else
+        @users = []
+        params[:notify_all].each do |role_name|
+          @users += User.all.select{|u| u.roles.collect(&:name).include?(role_name)}
+        end
+        @users = @users.uniq
+      end
     elsif params[:user_ids]
       @users = User.find(params[:user_ids])
     end
-
+   
     if @users.blank?
       flash[:error] = t('no_user', :default => "Who did you want to notify?")
       redirect_to :action => :notify and return
@@ -85,7 +101,7 @@ class Admin::AdminUsersController < ApplicationController
     AdminMailer.deliver_archive_notification(current_admin.login, @users, @subject, @message)
     
     flash[:notice] = t('sent', :default => "Notification sent to {{count}} user(s).", :count => @users.size)
-   redirect_to :action => :notify
+    redirect_to :action => :notify
   end
 
 end  

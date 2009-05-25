@@ -14,7 +14,7 @@ module WorksHelper
     list = [['Published:', localize(work.published_at.to_date)], ['Words:', work.word_count], ['Chapters:', work.chapter_total_display]]
     if work.chaptered?
       prefix = work.is_wip ? "Updated:" : "Completed:"
-      list.insert(1, [prefix, localize(work.updated_at.to_date)])
+      list.insert(1, [prefix, localize(work.revised_at.to_date)])
     end
     '<dl>' + list.map {|l| '<dt>' + l.first + '</dt><dd>' + l.last.to_s + '</dd>'}.to_s + '</dl>'
   end
@@ -25,18 +25,6 @@ module WorksHelper
       comments_link = '<li>' + link_to("Comments", work_path(work, :show_comments => true, :anchor => 'comments')) + '</li>'  
     end
     "<ul>" + bookmark_link + (comments_link ||= '') + "</ul>"    
-  end
-
-#  def view_all_chapters_link(work)
-#    #link_to_remote "View entire work", {:url => {:controller => :chapters, :action => :index, :work_id => work, :old_chapter => chapter.id}, :method => :get},
-#    #                                      {:href => work_path(work)}
-#    link_to "View entire work", work_path(work)
-#  end
-
-  def view_chapter_link(work, chapter)
-    #link_to_remote "View by chapters", {:url => {:controller => :chapters, :action => :show, :work_id => work, :id => work.first_chapter}, :method => :get},
-    #                                        {:href => url_for({:controller => :chapters, :action => :show, :work_id => work, :id => work.first_chapter})}
-    link_to "View by chapters", url_for({:controller => :chapters, :action => :show, :work_id => work, :id => chapter})
   end
 
   # Determines whether or not to display warnings for a work
@@ -88,16 +76,19 @@ module WorksHelper
   end
 
   def get_symbols_for(work)
-    warning_class = get_warnings_class(work.warnings)
-    warning_string = get_title_string(work.warnings)
-
-    rating = work.ratings.blank? ? nil : work.ratings.first
+    warnings = work.tags.select{|tag| tag.type == "Warning"}
+    warning_class = get_warnings_class(warnings)
+    warning_string = get_title_string(warnings)
+    
+    ratings = work.tags.select{|tag| tag.type == "Rating"}
+    rating = ratings.blank? ? nil : ratings.first
     rating_class = get_ratings_class(rating)
-    rating_string = get_title_string(work.ratings, "rating")
-
-    category = work.categories.blank? ? nil : work.categories.first
+    rating_string = get_title_string(ratings, "rating")
+    
+    categories = work.tags.select{|tag| tag.type == "Category"}
+    category = categories.blank? ? nil : categories.first
     category_class = get_category_class(category)
-    category_string = get_title_string(work.categories, "category")
+    category_string = get_title_string(categories, "category")
 
     iswip_class = get_complete_class(work)
     iswip_string = work.is_wip ? "Work in Progress" : "Complete Work"
