@@ -6,10 +6,10 @@ class WorksController < ApplicationController
   # only registered users and NOT admin should be able to create new works
   before_filter :users_only, :only => [ :new, :create, :upload_work, :drafts, :preview ]
   before_filter :check_user_status, :only => [:new, :create, :edit, :update, :preview]
-  before_filter :load_work, :only => [ :show, :edit, :update, :destroy, :preview ]
+  before_filter :load_work, :only => [ :show, :navigate, :edit, :update, :destroy, :preview ]
   before_filter :check_ownership, :only => [ :edit, :update, :destroy, :preview ]
-  before_filter :check_visibility, :only => [ :show ]
-  before_filter :set_instance_variables, :only => [ :new, :create, :edit, :update, :manage_chapters, :preview, :show, :upload_work ]
+  before_filter :check_visibility, :only => [ :show, :navigate ]
+  before_filter :set_instance_variables, :only => [ :new, :create, :edit, :update, :manage_chapters, :preview, :show, :navigate, :upload_work ]
   before_filter :update_or_create_reading, :only => [ :show ]
 
   def load_work
@@ -49,7 +49,8 @@ class WorksController < ApplicationController
     begin
       if params[:id] # edit, update, preview, manage_chapters
         @work ||= Work.find(params[:id])
-        @previous_published_at = @work.published_at
+        @previous_published_at = @work.first_chapter.published_at
+        @previous_backdate_setting = @work.backdate
         if params[:work]  # editing, save our changes
           @work.attributes = params[:work]
         end
@@ -72,6 +73,11 @@ class WorksController < ApplicationController
       if params[:work] && params[:work][:chapter_attributes]
         @chapter.content = params[:work][:chapter_attributes][:content]
         @chapter.title = params[:work][:chapter_attributes][:title]
+        if params[:update_button]
+          @chapter.published_at = params[:work][:chapter_attributes][:published_at]
+        else  
+          @chapter.published_at = convert_date(params[:work][:chapter_attributes], :published_at)
+        end
       end
 
       unless current_user == :false
@@ -118,13 +124,14 @@ class WorksController < ApplicationController
       @query = params[:query]
       begin
         @works = Work.search_with_sphinx(params)
+        @works_to_filter = Work.search_with_sphinx(params, filterable=true)
       rescue ThinkingSphinx::ConnectionError
         flash[:error] = t('errors.search_engine_down', :default => "The search engine seems to be down at the moment, sorry!")
-       redirect_to :action => :index and return
+        redirect_to :action => :index and return
       end
 
       unless @works.empty?
-        @filters = Work.build_filters_new(@works)
+        @filters = Work.build_filters(@works_to_filter)
       end
     else
       @most_recent_works = (params[:tag_id].blank? && params[:user_id].blank?)
@@ -177,19 +184,11 @@ class WorksController < ApplicationController
       begin
         # build filters so we can go back
         flash.now[:notice] = t('results_not_found', :default => "We couldn't find any results using all those filters, sorry! You can unselect some and filter again to get more matches.")
-        filters_array = Tag.find(@selected_tags, :select => "tags.type as tag_type, tags.id as tag_id, tags.name as tag_name")
-        @filters = Work.build_filters_hash(filters_array)
+        @filters = Work.build_filters_from_tags(Tag.find(@selected_tags))
       rescue
         # do we need more than the regular flash notice?
       end
     end
-
-    # clean out the filters
-    #if @filters && !@filters.empty?
-    #  @filters.keys.each do |category|
-    #    @filters[category].reject! {|filter| (!@selected_tags.include?(filter[:id]) && (filter[:count].to_i < 2))}
-    #  end
-    #end
   end
 
   def drafts
@@ -240,6 +239,10 @@ class WorksController < ApplicationController
     end
     @page_title += " [#{ArchiveConfig.APP_NAME}]"
   end
+  
+  def navigate
+    @chapters = @work.chapters.posted.in_order.blank? ? @work.chapters.posted : @work.chapters.posted.in_order   
+  end
 
   # GET /works/new
   def new
@@ -262,7 +265,7 @@ class WorksController < ApplicationController
       redirect_to current_user
     else # now also treating the cancel_coauthor_button case, bc it should function like a preview, really
       saved = @work.save
-      unless saved && @work.has_required_tags? && @work.set_revised_at(@work.published_at)
+      unless saved && @work.has_required_tags? && @work.set_revised_at(@chapter.published_at)
         unless @work.has_required_tags?
           @work.errors.add(:base, "Creating: Required tags are missing.")
         end
@@ -317,6 +320,7 @@ class WorksController < ApplicationController
       if params[:work] && params[:work][:chapter_attributes]
         @chapter.content = params[:work][:chapter_attributes][:content]
         @chapter.title = params[:work][:chapter_attributes][:title]
+        @chapter.published_at = convert_date(params[:work][:chapter_attributes], :published_at)
       end
 
       #flash[:notice] = "DEBUG: in UPDATE preview:  " + "all: " + @allpseuds.flatten.collect {|ap| ap.id}.inspect + " selected: " + @selected_pseuds.inspect + " co-authors: " + @coauthors.flatten.collect {|ap| ap.id}.inspect + " pseuds: " + @pseuds.flatten.collect {|ap| ap.id}.inspect + "  @work.authors: " + @work.authors.collect {|au| au.id}.inspect + "  @work.pseuds: " + @work.pseuds.collect {|ps| ps.id}.inspect
@@ -336,13 +340,37 @@ class WorksController < ApplicationController
       render :partial => 'work_form', :layout => 'application'
     else
       saved = true
+
       @chapter.save || saved = false
       @work.has_required_tags? || saved = false
       if saved
-        # If the work is being posted for the first time, or
-        # the user has changed the published_at date, update the revised_at date.
-        if params[:post_button] || defined?(@previous_published_at) && @previous_published_at != @work.published_at
-          @work.set_revised_at(@work.published_at)
+        # Setting the @work.revised_at datetime if appropriate
+        # if @chapter.published_at has been changed or work is being posted
+        if params[:post_button] || defined?(@previous_published_at) && @previous_published_at != @chapter.published_at
+          # if work has only one chapter - so we don't need to take any other chapter dates into account, 
+          # OR the date is set to today AND the backdating setting has not been changed
+          if @work.chapters == 1 || @chapter.published_at == Date.today && defined?(@previous_backdate_setting) && @previous_backdate_setting == @work.backdate
+            @work.set_revised_at(@chapter.published_at)
+          # work has more than one chapter and the published_at date for this chapter is not today
+          # so we can't tell if there is a later date than this one elsewhere, and need to grab all
+          # OR the date is today but the backdate setting has changed
+          else
+            # if backdate has been changed to positive
+            if defined?(@previous_backdate_setting) && @previous_backdate_setting == false && @work.backdate
+              @work.set_revised_at(@chapter.published_at) # set revised_at to the date on this form
+            # if backdate has been changed to negative 
+            # OR there is no change in the backdate setting but the date isn't today
+            else 
+              @work.set_revised_at
+            end
+          end
+        # elsif the date hasn't been changed, but the backdate setting has  
+        elsif defined?(@previous_backdate_setting) && @previous_backdate_setting != @work.backdate
+          if @previous_backdate_setting == false && @work.backdate  # if backdate has been changed to positive
+            @work.set_revised_at(@chapter.published_at) # set revised_at to the date on this form
+          else # if backdate has been changed to negative, grab most recent chapter date
+            @work.set_revised_at
+          end
         end
         @work.posted = true
 

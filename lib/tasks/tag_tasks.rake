@@ -51,4 +51,13 @@ namespace :Tag do
       puts deleted_names.join(", ")
     end
   end
+  desc "Reset filter taggings"
+  task(:reset_filters => :environment) do
+    FilterTagging.delete_all
+    FilterTagging.build_from_taggings
+  end
+  desc "Reset filter counts"
+  task(:reset_filter_counts => :environment) do
+    FilterCount.set_all
+  end
 end

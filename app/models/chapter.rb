@@ -34,13 +34,16 @@ class Chapter < ActiveRecord::Base
 
   before_save :validate_authors, :clean_title
   before_save :set_word_count
+  before_save :validate_published_at
   
   named_scope :in_order, {:order => :position}
   named_scope :posted, :conditions => {:posted => true}
   
   # There seem to be chapters without works in the tests, hence the if self.work_id
   def after_validation
-    self.insert_at(self.position) if self.work_id && self.position != self.work.chapters.size
+    if self.work.respond_to?(:chapters)
+      self.insert_at(self.position) if self.position != self.work.chapters.size
+    end
   end
 
   # strip leading spaces from title
@@ -103,6 +106,16 @@ class Chapter < ActiveRecord::Base
       return false
     end
   end
+  
+  # Checks the chapter published_at date isn't in the future
+  def validate_published_at
+    if !self.published_at
+      self.published_at = Date.today
+    elsif self.published_at > Date.today
+      errors.add_to_base(t('no_future_dating', :default => "Publication date can't be in the future."))
+      return false
+    end
+  end  
   
   # Set the value of word_count to reflect the length of the chapter content
   def set_word_count

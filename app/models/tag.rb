@@ -19,13 +19,17 @@ class Tag < ActiveRecord::Base
   belongs_to :merger, :class_name => 'Tag'
   belongs_to :fandom
   belongs_to :media
+  
+  has_many :filter_taggings, :foreign_key => 'filter_id'
+  has_many :filtered_works, :through => :filter_taggings, :source => :filterable, :source_type => 'Work'
+  has_one :filter_count, :foreign_key => 'filter_id'
 
   has_many :common_taggings, :foreign_key => 'common_tag_id'
   has_many :child_taggings, :class_name => 'CommonTagging', :as => :filterable
   has_many :children, :through => :child_taggings, :source => :common_tag 
   has_many :parents, :through => :common_taggings, :source => :filterable, :source_type => 'Tag'
   has_many :ambiguities, :through => :common_taggings, :source => :filterable, :source_type => 'Ambiguity'
-  has_many :filtered_works, :through => :common_taggings, :source => :filterable, :source_type => 'Work'
+  #has_many :filtered_works, :through => :common_taggings, :source => :filterable, :source_type => 'Work'
 
   has_many :taggings, :as => :tagger
   has_many :works, :through => :taggings, :source => :taggable, :source_type => 'Work'
@@ -79,6 +83,36 @@ class Tag < ActiveRecord::Base
     }
   }
   
+  named_scope :filters_with_count, lambda { |work_ids|
+    {
+      :select => "tags.*, count(distinct works.id) as count",
+      :joins => :filtered_works,
+      :conditions => ['works.id IN (?)', work_ids],
+      :order => :name,
+      :group => :id
+    }     
+  }
+  
+  named_scope :public_top, lambda { |count|
+    {
+      :select => "tags.*, filter_counts.public_works_count as count",
+      :joins => :filter_count,
+      :order => 'filter_counts.public_works_count DESC',
+      :conditions => 'filter_counts.public_works_count > 0',
+      :limit => count
+    }     
+  }
+  
+  named_scope :unhidden_top, lambda { |count|
+    {
+      :select => "tags.*, filter_counts.unhidden_works_count as count",
+      :joins => :filter_count,
+      :order => 'filter_counts.unhidden_works_count DESC',
+      :conditions => 'filter_counts.unhidden_works_count > 0',
+      :limit => count
+    }     
+  } 
+  
   # Class methods
 
   def self.string
@@ -123,6 +157,84 @@ class Tag < ActiveRecord::Base
   def <=>(another_tag)
     name.downcase <=> another_tag.name.downcase
   end
+  
+  #### FILTERING ####
+  
+  before_save :update_filters_for_canonical_change
+  before_save :update_filters_for_merger_change
+  
+  # If a tag was not canonical but is now, it needs new filter_taggings
+  # If it was canonical but isn't anymore, we need to change or remove
+  # the filter_taggings as appropriate
+  def update_filters_for_canonical_change
+    if self.canonical_changed?
+      if self.canonical?
+        self.add_filter_taggings
+      elsif self.merger && self.merger.canonical?
+        self.filter_taggings.update_all(["filter_id = ?", self.merger_id])
+      else
+        self.remove_filter_taggings
+      end
+    end      
+  end
+  
+  # If a tag has a new merger, add to the filter_taggings for that merger
+  # If a tag has a new merger but had an old merger, add new filter_taggings
+  # and get rid of the old filter_taggings as appropriate 
+  def update_filters_for_merger_change
+    if self.merger_id_changed?
+      if self.merger && self.merger.canonical?
+        self.add_filter_taggings
+      end
+      old_merger = Tag.find_by_id(self.merger_id_was)
+      if old_merger && old_merger.canonical?
+        self.remove_filter_taggings(old_merger)
+      end
+    end    
+  end
+  
+  # Add filter taggings for a given tag
+  def add_filter_taggings
+    filter = self.canonical? ? self : self.merger
+    if filter
+      Work.with_any_tags([self, filter]).each do |work|
+        work.filter_taggings.find_or_create_by_filter_id(filter.id)
+      end
+    end
+  end
+  
+  # Remove filter taggings for a given tag
+  # If an old_filter value is given, remove filter_taggings from it with due regard
+  # for potential duplication (ie, works tagged with more than one synonymous tag)
+  def remove_filter_taggings(old_filter=nil)
+    if old_filter
+      potential_duplicate_filters = [old_filter] + old_filter.mergers - [self]
+      self.works.each do |work|
+        if (work.tags & potential_duplicate_filters).empty?
+          filter_tagging = work.filter_taggings.find_by_filter_id(old_filter.id)
+          filter_tagging.destroy if filter_tagging
+        end
+      end      
+    else
+      self.filter_taggings.destroy_all
+    end    
+  end
+  
+  def reset_filter_count
+    filter = self.canonical? ? self : self.merger
+    if filter && filter.reload
+      attributes = {:public_works_count => filter.filtered_works.posted.unhidden.unrestricted.count, 
+                    :unhidden_works_count => filter.filtered_works.posted.unhidden.count}
+      if filter.filter_count
+        filter.filter_count.update_attributes(attributes)        
+      else
+        filter.create_filter_count(attributes)
+      end
+      filter.filter_count.reload
+    end
+  end
+  
+  #### END FILTERING ####
 
 
   def update_common_tags
@@ -261,13 +373,16 @@ class Tag < ActiveRecord::Base
 
     # get the nomedia tag
     nomedia = Media.find_by_name(ArchiveConfig.MEDIA_NO_TAG_NAME)
+    uncategorized = Media.find_by_name(ArchiveConfig.MEDIA_UNCATEGORIZED_NAME)
 
     # get the first media of the current tag which is not nomedia
-    media = (self.medias - [nomedia]).first
+    media = (self.medias - [nomedia, uncategorized]).first
 
     # if we have a media, we don't need "No Media" as a media
     if media && self.medias.include?(nomedia)
       self.remove_media(nomedia)
+    elsif media && (self.media == uncategorized || self.media == nomedia)
+      self.update_attribute(:media_id, media.id)
     end
 
     # make sure the tag has a media id
@@ -612,6 +727,10 @@ class Tag < ActiveRecord::Base
 
   def find_similar
     Tag.find(:all, :conditions => ["name like ? and canonical = ?", "%" + self.name + "%", true])
+  end
+  
+  def synonyms
+    self.canonical? ? self.mergers : [self.merger] + self.merger.mergers - [self]
   end
 
 end

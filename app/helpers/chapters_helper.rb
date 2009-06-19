@@ -1,4 +1,16 @@
-module ChaptersHelper 
+module ChaptersHelper
+  
+  def chapter_title_with_position(chapter)
+    chapter.position.to_s + '. ' + chapter_title(chapter)
+  end
+  
+  def chapter_title(chapter)
+    chapter.title.blank? ? t('alt_title', :default => "Chapter {{position}}", :position => chapter.position) : chapter.title
+  end
+  
+  def chapter_link_with_title(chapter)
+    link_to_unless_current chapter_title(chapter), [chapter.work, chapter]
+  end 
   
   # Creates a link with the appropriate chapter number
   def chapter_link(chapter)
@@ -39,4 +51,12 @@ module ChaptersHelper
                :id => work.chapters.in_order[chapter_position]})
   end
   
+  # Sets default published_at date on chapter form if @work.backdate_default is true
+  def default_date
+    if @work.backdate
+      @work.first_chapter.published_at
+    else
+      Date.today
+    end
+  end
 end
