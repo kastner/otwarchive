@@ -73,9 +73,9 @@ class WorksController < ApplicationController
       if params[:work] && params[:work][:chapter_attributes]
         @chapter.content = params[:work][:chapter_attributes][:content]
         @chapter.title = params[:work][:chapter_attributes][:title]
-        if params[:update_button]
+        if params[:update_button] || params[:post_button]# date is coming in in one piece
           @chapter.published_at = params[:work][:chapter_attributes][:published_at]
-        else  
+        else  # date is coming in in three pieces and we need to splice it together using convert_date (application.rb)
           @chapter.published_at = convert_date(params[:work][:chapter_attributes], :published_at)
         end
       end
@@ -346,10 +346,10 @@ class WorksController < ApplicationController
       if saved
         # Setting the @work.revised_at datetime if appropriate
         # if @chapter.published_at has been changed or work is being posted
-        if params[:post_button] || defined?(@previous_published_at) && @previous_published_at != @chapter.published_at
+        if params[:post_button] || (defined?(@previous_published_at) && @previous_published_at != @chapter.published_at)
           # if work has only one chapter - so we don't need to take any other chapter dates into account, 
           # OR the date is set to today AND the backdating setting has not been changed
-          if @work.chapters == 1 || @chapter.published_at == Date.today && defined?(@previous_backdate_setting) && @previous_backdate_setting == @work.backdate
+          if @work.chapters.size == 1 || (@chapter.published_at == Date.today && defined?(@previous_backdate_setting) && @previous_backdate_setting == @work.backdate)
             @work.set_revised_at(@chapter.published_at)
           # work has more than one chapter and the published_at date for this chapter is not today
           # so we can't tell if there is a later date than this one elsewhere, and need to grab all
